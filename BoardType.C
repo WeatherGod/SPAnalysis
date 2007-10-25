@@ -32,7 +32,6 @@ bool BoardType::ShouldIgnore(const ClusterConfig &TheConfig) const
 }
 
 bool BoardType::ShouldIgnore(const ClusterConfig &TheConfig, const double DistFromCheck) const
-// May want to revise how this works.  Soon, I am going to increase the radius, which will result in odd behavior.
 {
 	return((GiveValue() / DistFromCheck) <= TheConfig.IgnoreHowMuchRule());
 }
