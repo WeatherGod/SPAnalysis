@@ -61,6 +61,7 @@ class StrongPointAnalysis
 		float myStrongThreshold;
 		float myWeakThreshold;
 		float myWeakAssist;
+		float myReach;
 
 
 		bool IsStrongPoint(const size_t &xLoc, const size_t &yLoc) const;

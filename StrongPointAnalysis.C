@@ -17,7 +17,9 @@ StrongPointAnalysis::StrongPointAnalysis()
 		myXSize(0),
 		myYSize(0),
 		myStrongThreshold(NAN),
-		myWeakThreshold(NAN)
+		myWeakThreshold(NAN),
+		myWeakAssist(0.0),
+		myReach(1.5)
 {
 }
 
@@ -30,7 +32,8 @@ StrongPointAnalysis::StrongPointAnalysis(const vector<size_t> &xLocs, const vect
 		myYSize(ySize),
 		myStrongThreshold(NAN),
 		myWeakThreshold(NAN),
-		myWeakAssist(0.0)
+		myWeakAssist(0.0),
+		myReach(1.5)
 {
 	if (LoadData(xLocs, yLocs, dataVals))
 	{
@@ -126,11 +129,14 @@ void StrongPointAnalysis::AnalyzeBoard(const double &deviationsAbove, const doub
 //        const double BetaVal = (( sumOfSquares / (double) gridSize ) - pow(avgVal, 2.0)) / avgVal;
 //	const double AlphaVal = pow(avgVal, 2.0) / ((sumOfSquares / (double) gridSize) - pow(avgVal, 2.0));
 
-//      cout << "GammaDistribution -- Alpha: " << AlphaVal << "   Beta: " << BetaVal << endl;
+
 
 //        const double devVal = sqrt(AlphaVal*pow(BetaVal, 2.0));
 	const double devVal = sqrt((sumOfSquares / (double) (gridSize - 1)) 
 				   - pow((theSum / (double) (gridSize - 1)), 2.0));
+
+	
+        cout << "Stat -- Avg: " << avgVal << "   StdDeviation: " << devVal << endl;
 
 
 	myStrongThreshold = (float) (avgVal + (deviationsAbove * devVal));
@@ -183,7 +189,7 @@ void StrongPointAnalysis::PrintBoard() const
 		printf("% *u ", ColWidth, X);
 	}
 
-	cout << "/-"
+	cout << "\n/-"
 	     << string((ColWidth + 1) * myXSize, '-')
 	     << "\\Y:\n";
 
@@ -201,10 +207,10 @@ void StrongPointAnalysis::PrintBoard() const
 				cout << " . ";
 				break;
 			case WEAK:
-				cout << " * ";
+				cout << " ~ ";
 				break;
 			case STRONG:
-				cout << " ~ ";
+				cout << " * ";
 				break;
 			default:
 				cout << " ? ";
@@ -236,6 +242,7 @@ void StrongPointAnalysis::ResetBoard()
 	myStrongThreshold = NAN;
 	myWeakThreshold = NAN;
 	myWeakAssist = 0.0;
+	myReach = 1.5;
 }
 
 bool StrongPointAnalysis::BeenChecked(const size_t &XLoc, const size_t &YLoc) const
@@ -490,24 +497,25 @@ StrongPointAnalysis::FindStrongPoints(const size_t &Xindex, const size_t &Yindex
 	{
 		newCluster.AddMember(Xindex, Yindex, myData[Yindex][Xindex]);
 
-		const size_t startX = (Xindex > 0 ? Xindex - 1 : 0);
-		const size_t startY = (Yindex > 0 ? Yindex - 1 : 0);
-		const size_t endX = ((Xindex + 1) < myXSize ? Xindex + 1 : Xindex);
-		const size_t endY = ((Yindex + 1) < myYSize ? Yindex + 1 : Yindex);
+		const int startX = (Xindex > myReach ? (int) -myReach : -(int) Xindex);
+		const int startY = (Yindex > myReach ? (int) -myReach : -(int) Yindex);
+		const int endX = (Xindex < myXSize - (int) myReach ? (int) myReach : (int) myXSize - Xindex);
+		const int endY = (Yindex < myYSize - (int) myReach ? (int) myReach : (int) myYSize - Yindex);
 
-		for (size_t YLoc = startY; YLoc <= endY; YLoc++)
+		for (int yOffset = startY; yOffset <= endY; yOffset++)
 		{
-			for (size_t XLoc = startX; XLoc <= endX; XLoc++)
+			for (int xOffset = startX; xOffset <= endX; xOffset++)
 			{
-				if ((XLoc != Xindex || YLoc != Yindex)
-				    && !BeenChecked(XLoc, YLoc))
+				if ((xOffset != 0 || yOffset != 0) &&
+				    myReach > hypot((double) xOffset, (double) yOffset) &&
+				    !BeenChecked(Xindex + xOffset, Yindex + yOffset))
 				{
 					// Don't Network from the same location as [Xindex, Yindex],
 					// And, don't network from a spot that already has been checked,
 					// because if it has been checked, then it is either a strong point
 					// that I already know about, or it is a weak or ignorable point
 					// that I don't care about.
-					FindStrongPoints(XLoc, YLoc, newCluster);
+					FindStrongPoints(Xindex + xOffset, Yindex + yOffset, newCluster);
 				}
 			}
 		}
