@@ -1,12 +1,12 @@
 using namespace std;
 
-#include "StrongPointAnalysis.h"
-#include "Cluster.h"
+#include "StrongPointAnalysis.h"	// for enum PointLabel, PointLoc
+#include "Cluster.h"			// for class Cluster, struct ClustMember
 
 #include <iostream>
 #include <vector>
 #include <algorithm>			// for max(), max_element()
-#include <cctypes>			// for size_t
+#include <cctype>			// for size_t
 
 #include <cmath>			// for pow(), hypot(), NAN, isfinite(), sqrt()
 
@@ -161,16 +161,6 @@ size_t StrongPointAnalysis::GridPointsUsed() const
 size_t StrongPointAnalysis::GridSize() const
 {
 	return(myXSize * myYSize);
-}
-
-size_t StrongPointAnalysis::XSize() const
-{
-	return(myXSize);
-}
-
-size_t StrongPointAnalysis::YSize() const
-{
-	return(myYSize);
 }
 
 
@@ -396,32 +386,32 @@ bool StrongPointAnalysis::IsStrongPoint(const size_t &Xindex, const size_t &Yind
 
 
 
-double StrongPointAnalysis::StrongPointsTouch(const size_t &Xloc, const size_t &Yloc) const
+double StrongPointAnalysis::StrongPointsTouch(const size_t &XLoc, const size_t &YLoc) const
 //  This function counts the number of gridpoints immediately surrounding (XLoc, YLoc) that are strong points
 //    and it weights the count according to distance from (Xloc, Yloc)
 {
 	double StrongPointCount = 0.0;
 
-	const size_t xStart = (XLoc > 0 ? XLoc - 1 : 0);
-	const size_t xEnd = (XLoc + 1 < myXSize ? XLoc + 1 : XLoc);
-	const size_t yStart = (YLoc > 0 ? YLoc - 1 : 0);
-	const size_t yEnd = (YLoc + 1 < myYSize ? YLoc + 1 : YLoc);
+	const int xStart = (XLoc > 0 ? -1 : 0);
+	const int xEnd = (XLoc + 1 < myXSize ? 1 : 0);
+	const int yStart = (YLoc > 0 ? -1 : 0);
+	const int yEnd = (YLoc + 1 < myYSize ? 1 : 0);
 
-	for (size_t Yindex = yStart; Yindex <= yEnd; Yindex++)
+	for (int yIndex = yStart; yIndex <= yEnd; yIndex++)
 	{
-                for (size_t Xindex = xStart; Xindex <= xEnd; Xindex++)
+                for (int xIndex = xStart; xIndex <= xEnd; xIndex++)
                 {
-			if (Xindex != Xloc || Yindex != Yloc)
+			if (xIndex != 0 || yIndex != 0)
 			//  only count points that are surrounding (XLoc, YLoc), not (XLoc, YLoc) itself...
                         {
-                        	if (IsStrongPoint(Xindex, Yindex))
+                        	if (IsStrongPoint(XLoc + xIndex, YLoc + yIndex))
 				// notice that I am looking at the cluster's strong points, not the original grid's strong points.
 				//   I do not want a neighboring cluster's strong points to contribute to the decision making.
 				// WARNING: THIS IS NOT TRUE ANYMORE!!! THIS HAS TO BE FIXED!
 				//          MAYBE PASS CLUSTER ID#s?
 				{
-					StrongPointCount += 1.0 / hypot((double) (Xloc - Xindex), 
-									(double) (Yloc - Yindex));
+					StrongPointCount += 1.0 / hypot((double) xIndex, 
+									(double) yIndex);
                                 }
                 	}
                 }
@@ -445,7 +435,7 @@ bool StrongPointAnalysis::IsWeakPoint(const size_t &XLoc, const size_t &YLoc) co
 	}
 	else
 	{
-		const double assistedValue = OrigBoard.myData[YLoc][XLoc] + (StrongPointsTouch(XLoc, YLoc) * myWeakAssist);
+		const double assistedValue = myData[YLoc][XLoc] + (StrongPointsTouch(XLoc, YLoc) * myWeakAssist);
 
 		if (assistedValue >= myWeakThreshold)
 		{
@@ -459,7 +449,7 @@ bool StrongPointAnalysis::IsWeakPoint(const size_t &XLoc, const size_t &YLoc) co
 
 
 vector<Cluster>
-StrongPointAnalysis::Cluster() const
+StrongPointAnalysis::DoCluster() const
 {
 	vector<Cluster> theClusters(0);
 
@@ -502,8 +492,8 @@ StrongPointAnalysis::FindStrongPoints(const size_t &Xindex, const size_t &Yindex
 
 		const size_t startX = (Xindex > 0 ? Xindex - 1 : 0);
 		const size_t startY = (Yindex > 0 ? Yindex - 1 : 0);
-		const size_t endX = ((Xindex + 1) < myXsize ? Xindex + 1 : Xindex);
-		const size_t endY = ((Yindex + 1) < myYsize ? Yindex + 1 : Yindex);
+		const size_t endX = ((Xindex + 1) < myXSize ? Xindex + 1 : Xindex);
+		const size_t endY = ((Yindex + 1) < myYSize ? Yindex + 1 : Yindex);
 
 		for (size_t YLoc = startY; YLoc <= endY; YLoc++)
 		{
@@ -530,11 +520,11 @@ StrongPointAnalysis::PadCluster(Cluster &baseCluster) const
 // This must be done AFTER all of the strong points have already been found for the cluster.
 {
 	const vector<ClustMember> currMembers = baseCluster.GiveMembers();
-	const vector<PointLoc> strongLocs(currMembers.size());
+	vector<PointLoc> strongLocs(currMembers.size());
 
 	for (size_t index = 0; index < currMembers.size(); index++)
 	{
-		strongLocs[index] = (PointLoc)(currMembers[index].XLoc, currMembers[index].YLoc);
+		strongLocs[index] = PointLoc(currMembers[index].XLoc, currMembers[index].YLoc);
 	}
 
 	vector<PointLoc> clustDomain;
@@ -545,8 +535,8 @@ StrongPointAnalysis::PadCluster(Cluster &baseCluster) const
 	{
 		const size_t startX = (aStrongPoint->XLoc > 0 ? aStrongPoint->XLoc - 1 : 0);
 		const size_t startY = (aStrongPoint->YLoc > 0 ? aStrongPoint->YLoc - 1 : 0);
-		const size_t endX = ((aStrongPoint->XLoc + 1) < myXsize ? aStrongPoint->XLoc + 1 : aStrongPoint->XLoc);
-		const size_t endY = ((aStrongPoint->YLoc + 1) < myYsize ? aStrongPoint->YLoc + 1 : aStrongPoint->YLoc);
+		const size_t endX = ((aStrongPoint->XLoc + 1) < myXSize ? aStrongPoint->XLoc + 1 : aStrongPoint->XLoc);
+		const size_t endY = ((aStrongPoint->YLoc + 1) < myYSize ? aStrongPoint->YLoc + 1 : aStrongPoint->YLoc);
 
 		for (size_t xIndex = startX; xIndex <= endX; xIndex++)
 		{
@@ -571,7 +561,7 @@ StrongPointAnalysis::PadCluster(Cluster &baseCluster) const
 	// We will now check to see if any of them are weak points.
 	// BUG: This quick-and-dirty algorithm still can't differentiate between a
 	// strong point in the current cluster and a strong point in a neighboring cluster.
-	for (vector<PointLoc>::const_iterator pointCheck = clustDomain.begin(),
+	for (vector<PointLoc>::const_iterator pointCheck = clustDomain.begin();
 	     pointCheck != clustDomain.end();
 	     pointCheck++)
 	{

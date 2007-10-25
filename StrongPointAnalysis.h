@@ -2,7 +2,7 @@
 #define _STRONGPOINTANALYSIS_H
 
 #include <vector>
-#include <cctypes>	// for size_t
+#include <cctype>	// for size_t
 
 #include "Cluster.h"
 
@@ -49,7 +49,7 @@ class StrongPointAnalysis
 			       const size_t &xSize, const size_t &ySize,
 			       const double &deviationsAbove, const double &deviationsBelow, const float &paddingLevel);
 
-		vector<Cluster> Cluster() const;
+		vector<Cluster> DoCluster() const;
 		
 	private:
 		vector< vector< float > > myData;
@@ -69,13 +69,14 @@ class StrongPointAnalysis
 		bool BeenChecked(const size_t &xLoc, const size_t &yLoc) const;
 
 		void FindStrongPoints(const size_t &Xindex, const size_t &Yindex, Cluster &newCluster) const;
-		void PadCluster(Cluster &baseCluster);
+		void PadCluster(Cluster &baseCluster) const;
 
-		void AnalyzeBoard(const double &deviationsAbove, const double &deviationsBelow, const size_t &assistLevel);
+		void AnalyzeBoard(const double &deviationsAbove, const double &deviationsBelow, const float &paddingLevel);
 		bool LoadData(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals);
 		void ResetBoard();
 
 		double StrongPointsTouch(const size_t &XLoc, const size_t &YLoc) const;
+		size_t GridSize() const;
 };
 
 #endif
