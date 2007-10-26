@@ -142,6 +142,7 @@ void StrongPointAnalysis::AnalyzeBoard(const double &deviationsAbove, const doub
 	myStrongThreshold = (float) (avgVal + (deviationsAbove * devVal));
 	myWeakThreshold = (float) max(avgVal - (deviationsBelow * devVal), 0.0);
 	myWeakAssist = myWeakThreshold * (paddingLevel / 10.0);
+	cout << "Thresholds    STRONG: " << myStrongThreshold << "   WEAK: " << myWeakThreshold << "  WeakAssist: " << myWeakAssist << '\n';
 }
 
 /*
@@ -256,7 +257,7 @@ bool StrongPointAnalysis::IsIgnorablePoint(const size_t &XLoc, const size_t &YLo
 	{
 		return( IGNORABLE == myPointLabels[YLoc][XLoc] );
 	}
-	else if (myWeakThreshold > myData[YLoc][XLoc])
+	else if (myWeakThreshold >= myData[YLoc][XLoc])
 	{
 		myPointLabels[YLoc][XLoc] = IGNORABLE;
 		return(true);
@@ -435,7 +436,7 @@ bool StrongPointAnalysis::IsWeakPoint(const size_t &XLoc, const size_t &YLoc) co
 		return( WEAK == myPointLabels[YLoc][XLoc] );
 	}
 
-	if ( myData[YLoc][XLoc] >= myWeakThreshold )
+	if ( myData[YLoc][XLoc] > myWeakThreshold )
 	{
 		myPointLabels[YLoc][XLoc] = WEAK;
 		return(true);
@@ -474,6 +475,7 @@ StrongPointAnalysis::DoCluster() const
 			// we don't care about anyway.
 			if (!BeenChecked(Xindex, Yindex))
 			{
+
 				Cluster newCluster;
 				FindStrongPoints(Xindex, Yindex, newCluster);
 				PadCluster(newCluster);
@@ -499,8 +501,8 @@ StrongPointAnalysis::FindStrongPoints(const size_t &Xindex, const size_t &Yindex
 
 		const int startX = (Xindex > myReach ? (int) -myReach : -(int) Xindex);
 		const int startY = (Yindex > myReach ? (int) -myReach : -(int) Yindex);
-		const int endX = (Xindex < myXSize - (int) myReach ? (int) myReach : (int) myXSize - Xindex);
-		const int endY = (Yindex < myYSize - (int) myReach ? (int) myReach : (int) myYSize - Yindex);
+		const int endX = (Xindex <= myXSize - (int) myReach ? (int) myReach : (int) myXSize - Xindex);
+		const int endY = (Yindex <= myYSize - (int) myReach ? (int) myReach : (int) myYSize - Yindex);
 
 		for (int yOffset = startY; yOffset <= endY; yOffset++)
 		{
