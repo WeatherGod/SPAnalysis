@@ -19,31 +19,147 @@ StrongPointAnalysis::StrongPointAnalysis()
 		myStrongThreshold(NAN),
 		myWeakThreshold(NAN),
 		myWeakAssist(0.0),
-		myReach(1.5)
+		myReach(0.0),
+		myUpperSensitivity(0.0),
+		myLowerSensitivity(0.0),
+		myPaddingLevel(0.0)
 {
 }
 
-StrongPointAnalysis::StrongPointAnalysis(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
-					 const size_t &xSize, const size_t &ySize,
-					 const double &deviationsAbove, const double &deviationsBelow, const float &paddingLevel)
+StrongPointAnalysis::StrongPointAnalysis(const Cluster &aCluster, 
+					 const size_t &xSize, const size_t &ySize, 
+					 const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach)
 	:	myData(ySize, vector<float>(xSize, 0.0)),
-		myPointLabels(ySize, vector<PointLabel>(xSize, UNCHECKED)),
+		myPointLabels(ySize, vector<PointLabel>(xSize, UNINIT)),
 		myXSize(xSize),
 		myYSize(ySize),
 		myStrongThreshold(NAN),
 		myWeakThreshold(NAN),
 		myWeakAssist(0.0),
-		myReach(1.5)
+		myReach(reach),
+		myUpperSensitivity(upperSensitivity),
+		myLowerSensitivity(lowerSensitivity),
+		myPaddingLevel(paddingLevel)
 {
+	vector<size_t> xLocs(aCluster.MemberCount());
+        vector<size_t> yLocs(aCluster.MemberCount());
+        vector<float> dataVals(aCluster.MemberCount());
+
+        const vector<ClustMember> theMembers = aCluster.GiveMembers();
+
+        for (size_t memberIndex = 0; memberIndex < theMembers.size(); memberIndex++)
+        {
+                xLocs[memberIndex] = theMembers[memberIndex].XLoc;
+                yLocs[memberIndex] = theMembers[memberIndex].YLoc;
+                dataVals[memberIndex] = theMembers[memberIndex].memberVal;
+        }
+
 	if (LoadData(xLocs, yLocs, dataVals))
 	{
-		AnalyzeBoard(deviationsAbove, deviationsBelow, paddingLevel);
+		AnalyzeBoard();
 	}
 	else
 	{
 		ResetBoard();
 	}
 }
+
+
+StrongPointAnalysis::StrongPointAnalysis(const Cluster &aCluster,
+                                         const size_t &xSize, const size_t &ySize,
+                                         const float &sensitivityLevel, const float &paddingLevel, const float &reach)
+        :       myData(ySize, vector<float>(xSize, 0.0)),
+                myPointLabels(ySize, vector<PointLabel>(xSize, UNINIT)),
+                myXSize(xSize),
+                myYSize(ySize),
+                myStrongThreshold(NAN),
+                myWeakThreshold(NAN),
+                myWeakAssist(0.0),
+                myReach(reach),
+                myUpperSensitivity(2.0*sensitivityLevel),
+                myLowerSensitivity(sensitivityLevel),
+                myPaddingLevel(paddingLevel)
+{
+        vector<size_t> xLocs(aCluster.MemberCount());
+        vector<size_t> yLocs(aCluster.MemberCount());
+        vector<float> dataVals(aCluster.MemberCount());
+
+        const vector<ClustMember> theMembers = aCluster.GiveMembers();
+
+        for (size_t memberIndex = 0; memberIndex < theMembers.size(); memberIndex++)
+        {
+                xLocs[memberIndex] = theMembers[memberIndex].XLoc;
+                yLocs[memberIndex] = theMembers[memberIndex].YLoc;
+                dataVals[memberIndex] = theMembers[memberIndex].memberVal;
+        }
+
+        if (LoadData(xLocs, yLocs, dataVals))
+        {
+                AnalyzeBoard();
+        }
+        else
+        {
+                ResetBoard();
+        }
+}
+
+
+
+
+
+StrongPointAnalysis::StrongPointAnalysis(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
+					 const size_t &xSize, const size_t &ySize,
+					 const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach)
+	:	myData(ySize, vector<float>(xSize, 0.0)),
+		myPointLabels(ySize, vector<PointLabel>(xSize, UNINIT)),
+		myXSize(xSize),
+		myYSize(ySize),
+		myStrongThreshold(NAN),
+		myWeakThreshold(NAN),
+		myWeakAssist(0.0),
+		myReach(0.0),
+		myUpperSensitivity(upperSensitivity),
+		myLowerSensitivity(lowerSensitivity),
+		myPaddingLevel(paddingLevel)
+{
+	if (LoadData(xLocs, yLocs, dataVals))
+	{
+		AnalyzeBoard();
+	}
+	else
+	{
+		ResetBoard();
+	}
+}
+
+
+StrongPointAnalysis::StrongPointAnalysis(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
+                                         const size_t &xSize, const size_t &ySize,
+                                         const float &sensitivityLevel, const float &paddingLevel, const float &reach)
+        :       myData(ySize, vector<float>(xSize, 0.0)),
+                myPointLabels(ySize, vector<PointLabel>(xSize, UNINIT)),
+                myXSize(xSize),
+                myYSize(ySize),
+                myStrongThreshold(NAN),
+                myWeakThreshold(NAN),
+                myWeakAssist(0.0),
+                myReach(0.0),
+                myUpperSensitivity(2.0 * sensitivityLevel),
+                myLowerSensitivity(sensitivityLevel),
+                myPaddingLevel(paddingLevel)
+{
+        if (LoadData(xLocs, yLocs, dataVals))
+        {
+                AnalyzeBoard();
+        }
+        else
+        {
+                ResetBoard();
+        }
+}
+
+
+
 
 bool StrongPointAnalysis::LoadData(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals)
 {
@@ -63,6 +179,7 @@ bool StrongPointAnalysis::LoadData(const vector<size_t> &xLocs, const vector<siz
 			// Don't load any infinities or NaNs.
 			if (isfinite(dataVals[index]))
 			{
+				myPointLabels[yLocs[index]][xLocs[index]] = UNCHECKED;
 				myData[yLocs[index]][xLocs[index]] += dataVals[index];
 			}
 		}
@@ -75,9 +192,53 @@ bool StrongPointAnalysis::LoadData(const vector<size_t> &xLocs, const vector<siz
 	}
 }
 
+
+bool StrongPointAnalysis::LoadBoard(const Cluster &aCluster,
+				    const size_t &xSize, const size_t &ySize,
+				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach)
+{
+	vector<size_t> xLocs(aCluster.MemberCount());
+	vector<size_t> yLocs(aCluster.MemberCount());
+	vector<float> dataVals(aCluster.MemberCount());
+
+	const vector<ClustMember> theMembers = aCluster.GiveMembers();
+
+	for (size_t memberIndex = 0; memberIndex < theMembers.size(); memberIndex++)
+	{
+		xLocs[memberIndex] = theMembers[memberIndex].XLoc;
+		yLocs[memberIndex] = theMembers[memberIndex].YLoc;
+		dataVals[memberIndex] = theMembers[memberIndex].memberVal;
+	}
+
+	return(LoadBoard(xLocs, yLocs, dataVals, xSize, ySize, upperSensitivity, lowerSensitivity, paddingLevel, reach));
+}
+
+bool StrongPointAnalysis::LoadBoard(const Cluster &aCluster,
+                                    const size_t &xSize, const size_t &ySize,
+                                    const float &sensitivityLevel, const float &paddingLevel, const float &reach)
+{
+        vector<size_t> xLocs(aCluster.MemberCount());
+        vector<size_t> yLocs(aCluster.MemberCount());
+        vector<float> dataVals(aCluster.MemberCount());
+
+        const vector<ClustMember> theMembers = aCluster.GiveMembers();
+
+        for (size_t memberIndex = 0; memberIndex < theMembers.size(); memberIndex++)
+        {
+                xLocs[memberIndex] = theMembers[memberIndex].XLoc;
+                yLocs[memberIndex] = theMembers[memberIndex].YLoc;
+                dataVals[memberIndex] = theMembers[memberIndex].memberVal;
+        }
+
+        return(LoadBoard(xLocs, yLocs, dataVals, xSize, ySize, sensitivityLevel, paddingLevel, reach));
+}
+
+
+
+
 bool StrongPointAnalysis::LoadBoard(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
 			     const size_t &xSize, const size_t &ySize,
-			     const double &deviationsAbove, const double &deviationsBelow, const float &paddingLevel)
+			     const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach)
 {
 	ResetBoard();
 
@@ -87,65 +248,137 @@ bool StrongPointAnalysis::LoadBoard(const vector<size_t> &xLocs, const vector<si
 	    xSize > *max_element(xLocs.begin(), xLocs.end()) &&
 	    ySize > *max_element(yLocs.begin(), yLocs.end()))
 	{
+		bool goodLoad = true;
+
+		myPaddingLevel = paddingLevel;
+		myUpperSensitivity = upperSensitivity;
+		myLowerSensitivity = lowerSensitivity;
+		myReach = reach;
 		myXSize = xSize;
 		myYSize = ySize;
 		myData.resize(ySize, vector< float >(xSize, 0.0));
-		myPointLabels.resize(ySize, vector< PointLabel >(xSize, UNCHECKED));
+		myPointLabels.resize(ySize, vector< PointLabel >(xSize, UNINIT));
 
 		if (LoadData(xLocs, yLocs, dataVals))
 		{
-			AnalyzeBoard(deviationsAbove, deviationsBelow, paddingLevel);
+			AnalyzeBoard();
+			goodLoad = true;
 		}
 		else
 		{
 			ResetBoard();
+			goodLoad = false;
 		}
+
+		return(goodLoad);
+	}
+	else
+	{
+		return(false);
 	}
 }
 
 
-void StrongPointAnalysis::AnalyzeBoard(const double &deviationsAbove, const double &deviationsBelow, const float &paddingLevel)
+bool StrongPointAnalysis::LoadBoard(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
+                             const size_t &xSize, const size_t &ySize,
+                             const float &sensitivityLevel, const float &paddingLevel, const float &reach)
 {
-	const size_t gridSize = GridSize();
+        ResetBoard();
 
-	if (gridSize == 0)
+        if (xLocs.size() == yLocs.size() &&
+            xLocs.size() == dataVals.size() &&
+            xLocs.size() != 0 &&
+            xSize > *max_element(xLocs.begin(), xLocs.end()) &&
+            ySize > *max_element(yLocs.begin(), yLocs.end()))
+        {
+                bool goodLoad = true;
+
+                myPaddingLevel = paddingLevel;
+                myUpperSensitivity = 2.0 * sensitivityLevel;
+                myLowerSensitivity = sensitivityLevel;
+                myReach = reach;
+                myXSize = xSize;
+                myYSize = ySize;
+                myData.resize(ySize, vector< float >(xSize, 0.0));
+                myPointLabels.resize(ySize, vector< PointLabel >(xSize, UNINIT));
+
+                if (LoadData(xLocs, yLocs, dataVals))
+                {
+                        AnalyzeBoard();
+                        goodLoad = true;
+                }
+                else
+                {
+                        ResetBoard();
+                        goodLoad = false;
+                }
+
+                return(goodLoad);
+        }
+        else
+        {
+                return(false);
+        }
+}
+
+
+
+
+void StrongPointAnalysis::AnalyzeBoard()
+{
+	if (GridSize() <= 1)
 	{
 		return;
 	}
 
 	double theSum = 0.0;
 	double sumOfSquares = 0.0;
+	size_t pointCount = 0;
 
 	for (size_t Y = 0; Y < myYSize; Y++)
         {
                 for (size_t X = 0; X < myXSize; X++)
                 {
-                        theSum += (double) myData[Y][X];
-                        sumOfSquares += pow((double) myData[Y][X], 2.0);
+			if (myPointLabels[Y][X] != UNINIT)
+			{
+                        	theSum += (double) myData[Y][X];
+	                        sumOfSquares += pow((double) myData[Y][X], 2.0);
+				pointCount++;
+			}
                 }
         }
 
-        const double avgVal = theSum / (double) (gridSize - 1);
-//        const double BetaVal = (( sumOfSquares / (double) gridSize ) - pow(avgVal, 2.0)) / avgVal;
-//	const double AlphaVal = pow(avgVal, 2.0) / ((sumOfSquares / (double) gridSize) - pow(avgVal, 2.0));
+        const double avgVal = theSum / (double) (pointCount);
+
+	// Point Estimators of the parameters of the Gamma Distribution.
+        const double BetaVal = (( sumOfSquares / (double) pointCount ) - pow(avgVal, 2.0)) / avgVal;
+	const double AlphaVal = pow(avgVal, 2.0) / ((sumOfSquares / (double) pointCount) - pow(avgVal, 2.0));
 
 
 
-//        const double devVal = sqrt(AlphaVal*pow(BetaVal, 2.0));
-	const double devVal = sqrt((sumOfSquares / (double) (gridSize - 1)) 
-				   - pow((theSum / (double) (gridSize - 1)), 2.0));
+        const double devVal = sqrt(AlphaVal*pow(BetaVal, 2.0));
 
 	
-        cout << "Stat -- Avg: " << avgVal << "   StdDeviation: " << devVal << endl;
+        cout << "Stat -- Avg: " << avgVal << "   StdDeviation: " << devVal 
+	     << "  theSum: " << theSum << "  sumOfSquares: " << sumOfSquares << "  pointCount: " << pointCount << '\n';
+	cout << "      Alpha: " << AlphaVal << "    Beta: " << BetaVal << '\n';
 
 
-	myStrongThreshold = (float) (avgVal + (deviationsAbove * devVal));
-	myWeakThreshold = (float) max(avgVal - (deviationsBelow * devVal), 0.0);
-	myWeakAssist = myWeakThreshold * (paddingLevel / 10.0);
-	cout << "Thresholds    STRONG: " << myStrongThreshold << "   WEAK: " << myWeakThreshold << "  WeakAssist: " << myWeakAssist << '\n';
+	myStrongThreshold = (float) max(avgVal + (myUpperSensitivity * BetaVal * devVal), 0.0);
+	myWeakThreshold = (float) max(avgVal + (log(myLowerSensitivity * BetaVal) * devVal), 0.0);
+
+	myWeakAssist = myWeakThreshold * (myPaddingLevel / 10.0);
+	cout << "Thresholds    STRONG: " << myStrongThreshold << "   WEAK: " << myWeakThreshold 
+	     << "  WeakAssist: " << myWeakAssist << "  Reach: " << myReach << '\n';
+
+	if (devVal < 1.0 && BetaVal < 1.0)
+	{
+		// Don't let clustering occur.  It would be pretty much useless.
+		ResetBoard();
+	}
 }
 
-/*
+
 size_t StrongPointAnalysis::GridPointsUsed() const
 {
 	size_t RunningSum = 0;
@@ -163,7 +396,6 @@ size_t StrongPointAnalysis::GridPointsUsed() const
 
 	return(RunningSum);
 }
-*/
 
 size_t StrongPointAnalysis::GridSize() const
 {
@@ -201,8 +433,11 @@ void StrongPointAnalysis::PrintBoard() const
 		{
 			switch (myPointLabels[Y][X])
 			{
-			case UNCHECKED:
+			case UNINIT:
 				cout << "   ";
+				break;
+			case UNCHECKED:
+				cout << " + ";
 				break;
 			case IGNORABLE:
 				cout << " . ";
@@ -243,12 +478,15 @@ void StrongPointAnalysis::ResetBoard()
 	myStrongThreshold = NAN;
 	myWeakThreshold = NAN;
 	myWeakAssist = 0.0;
-	myReach = 1.5;
+	myReach = 0.0;
+	myPaddingLevel = 0.0;
+	myUpperSensitivity = 0.0;
+	myLowerSensitivity = 0.0;
 }
 
 bool StrongPointAnalysis::BeenChecked(const size_t &XLoc, const size_t &YLoc) const
 {
-	return( UNCHECKED != myPointLabels[YLoc][XLoc] );
+	return( UNCHECKED < myPointLabels[YLoc][XLoc] );
 }
 
 bool StrongPointAnalysis::IsIgnorablePoint(const size_t &XLoc, const size_t &YLoc) const
@@ -413,10 +651,6 @@ double StrongPointAnalysis::StrongPointsTouch(const size_t &XLoc, const size_t &
 			//  only count points that are surrounding (XLoc, YLoc), not (XLoc, YLoc) itself...
                         {
                         	if (IsStrongPoint(XLoc + xIndex, YLoc + yIndex))
-				// notice that I am looking at the cluster's strong points, not the original grid's strong points.
-				//   I do not want a neighboring cluster's strong points to contribute to the decision making.
-				// WARNING: THIS IS NOT TRUE ANYMORE!!! THIS HAS TO BE FIXED!
-				//          MAYBE PASS CLUSTER ID#s?
 				{
 					StrongPointCount += 1.0 / hypot((double) xIndex, 
 									(double) yIndex);
@@ -447,7 +681,7 @@ bool StrongPointAnalysis::IsWeakPoint(const size_t &XLoc, const size_t &YLoc) co
 
 		if (assistedValue >= myWeakThreshold)
 		{
-			myPointLabels[YLoc][XLoc] == WEAK;
+			myPointLabels[YLoc][XLoc] = WEAK;
 		}
 
 		return(assistedValue >= myWeakThreshold);
@@ -478,14 +712,66 @@ StrongPointAnalysis::DoCluster() const
 
 				Cluster newCluster;
 				FindStrongPoints(Xindex, Yindex, newCluster);
-				PadCluster(newCluster);
 
 				if (!newCluster.IsEmpty())
-				{
+				{		
 					theClusters.push_back(newCluster);
 				}
 			}
 		}
+	}
+
+	vector<Cluster> secIterClusts(0);
+	for (vector<Cluster>::iterator aClust = theClusters.begin();
+	     aClust != theClusters.end();
+	     aClust++)
+	{
+		// NOTE:  Padding of clusters must be done AFTER all of the strong points have been
+		// networked.  PadCluster() calls the function IsWeakPoint(), which can call
+		// IsStrongPoint() for points off of the network.  Therefore, if it is called
+		// while the main clusters are still being found, then points outside of the cluster
+		// may become set as strong points, and then ignored when FindStrongPoints() looks for the
+		// next network, because they are already set.
+		PadCluster(*aClust);
+
+		// Always returns at least the original cluster.
+		const vector<Cluster> subClusters = SubCluster(*aClust);
+
+		secIterClusts.insert(secIterClusts.end(), subClusters.begin(), subClusters.end());
+	}
+
+	cout << "Cluster Count: " << secIterClusts.size() << '\n';
+
+	return(secIterClusts);
+}
+
+
+vector<Cluster>
+StrongPointAnalysis::SubCluster(const Cluster &origCluster) const
+{
+	vector<Cluster> theClusters(0);
+
+	cout << "\tMember Count: " << origCluster.MemberCount() << '\n';
+	// Don't bother subclustering clusters with less than 6 datapoints.
+	if (origCluster.MemberCount() >= 6 && origCluster.MemberCount() < GridPointsUsed())
+	{
+		StrongPointAnalysis newSPA(origCluster, myXSize, myYSize, myUpperSensitivity, myLowerSensitivity, myPaddingLevel, myReach);
+
+		const vector<Cluster> subClusters = newSPA.DoCluster();
+
+		// If I didn't get any division of clusters, then keep the original.
+		if (!subClusters.empty())
+		{
+			theClusters.insert(theClusters.end(), subClusters.begin(), subClusters.end());	
+		}
+		else
+		{
+			theClusters.push_back(origCluster);
+		}
+	}
+	else
+	{
+		theClusters.push_back(origCluster);
 	}
 
 	return(theClusters);
@@ -501,8 +787,8 @@ StrongPointAnalysis::FindStrongPoints(const size_t &Xindex, const size_t &Yindex
 
 		const int startX = (Xindex > myReach ? (int) -myReach : -(int) Xindex);
 		const int startY = (Yindex > myReach ? (int) -myReach : -(int) Yindex);
-		const int endX = (Xindex <= myXSize - (int) myReach ? (int) myReach : (int) myXSize - Xindex);
-		const int endY = (Yindex <= myYSize - (int) myReach ? (int) myReach : (int) myYSize - Yindex);
+		const int endX = (Xindex < myXSize - (int) myReach ? (int) myReach : (int) myXSize - Xindex - 1);
+		const int endY = (Yindex < myYSize - (int) myReach ? (int) myReach : (int) myYSize - Yindex - 1);
 
 		for (int yOffset = startY; yOffset <= endY; yOffset++)
 		{
@@ -543,18 +829,27 @@ StrongPointAnalysis::PadCluster(Cluster &baseCluster) const
 	     aStrongPoint != strongLocs.end();
 	     aStrongPoint++)
 	{
+		const int startX = (aStrongPoint->XLoc > myReach ? (int) -myReach : -(int) aStrongPoint->XLoc);
+                const int startY = (aStrongPoint->YLoc > myReach ? (int) -myReach : -(int) aStrongPoint->YLoc);
+                const int endX = (aStrongPoint->XLoc < myXSize - (int) myReach ? (int) myReach : (int) myXSize - aStrongPoint->XLoc - 1);
+                const int endY = (aStrongPoint->YLoc < myYSize - (int) myReach ? (int) myReach : (int) myYSize - aStrongPoint->YLoc - 1);
+
+/*
 		const size_t startX = (aStrongPoint->XLoc > 0 ? aStrongPoint->XLoc - 1 : 0);
 		const size_t startY = (aStrongPoint->YLoc > 0 ? aStrongPoint->YLoc - 1 : 0);
 		const size_t endX = ((aStrongPoint->XLoc + 1) < myXSize ? aStrongPoint->XLoc + 1 : aStrongPoint->XLoc);
 		const size_t endY = ((aStrongPoint->YLoc + 1) < myYSize ? aStrongPoint->YLoc + 1 : aStrongPoint->YLoc);
+*/
 
-		for (size_t xIndex = startX; xIndex <= endX; xIndex++)
+		for (int yOffset = startY; yOffset <= endY; yOffset++)
 		{
-			for (size_t yIndex = startY; yIndex <= endY; yIndex++)
+			for (int xOffset = startX; xOffset <= endX; xOffset++)
 			{
-				if (xIndex != aStrongPoint->XLoc || yIndex != aStrongPoint->YLoc)
+				if ((xOffset != 0 || yOffset != 0) &&
+				    myReach > hypot((double) xOffset, (double) yOffset))
 				{
-					const PointLoc clustDomainPoint(xIndex, yIndex);
+					const PointLoc clustDomainPoint(aStrongPoint->XLoc + xOffset, 
+									aStrongPoint->YLoc + yOffset);
 
 					if (!binary_search(strongLocs.begin(), strongLocs.end(), clustDomainPoint) &&
 					    !binary_search(clustDomain.begin(), clustDomain.end(), clustDomainPoint))
@@ -571,6 +866,7 @@ StrongPointAnalysis::PadCluster(Cluster &baseCluster) const
 	// We will now check to see if any of them are weak points.
 	// BUG: This quick-and-dirty algorithm still can't differentiate between a
 	// strong point in the current cluster and a strong point in a neighboring cluster.
+	// NOTE: This is now less-and-less of an issue now with the use of sub-clustering.
 	for (vector<PointLoc>::const_iterator pointCheck = clustDomain.begin();
 	     pointCheck != clustDomain.end();
 	     pointCheck++)

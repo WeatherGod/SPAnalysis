@@ -9,7 +9,7 @@
 
 class StrongPointAnalysis
 {
-	enum PointLabel { UNCHECKED = 0, IGNORABLE, WEAK, STRONG };
+	enum PointLabel { UNINIT = 0, UNCHECKED, IGNORABLE, WEAK, STRONG };
 
 	class PointLoc
 	{
@@ -41,13 +41,36 @@ class StrongPointAnalysis
 		StrongPointAnalysis();
 		StrongPointAnalysis(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
 				    const size_t &xSize, const size_t &ySize,
-				    const double &deviationsAbove, const double &deviationsBelow, const float &paddingLevel);
+				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach);
+		StrongPointAnalysis(const Cluster &aClust, 
+				    const size_t &xSize, const size_t &ySize, 
+				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach);
+
+		StrongPointAnalysis(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
+                                    const size_t &xSize, const size_t &ySize,
+                                    const float &sensitivityLevel, const float &paddingLevel, const float &reach);
+                StrongPointAnalysis(const Cluster &aClust, 
+                                    const size_t &xSize, const size_t &ySize,
+                                    const float &sensitivityLevel, const float &paddingLevel, const float &reach);
 
 		void PrintBoard() const;
 
+		bool LoadBoard(const Cluster &aClust, 
+			       const size_t &xSize, const size_t &ySize,
+			       const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach);
+
 		bool LoadBoard(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
 			       const size_t &xSize, const size_t &ySize,
-			       const double &deviationsAbove, const double &deviationsBelow, const float &paddingLevel);
+			       const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach);
+
+		bool LoadBoard(const Cluster &aClust,
+                               const size_t &xSize, const size_t &ySize,
+                               const float &sensitivityLevel, const float &paddingLevel, const float &reach);
+
+                bool LoadBoard(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
+                               const size_t &xSize, const size_t &ySize,
+                               const float &sensitivityLevel, const float &paddingLevel, const float &reach);
+
 
 		vector<Cluster> DoCluster() const;
 		
@@ -61,7 +84,12 @@ class StrongPointAnalysis
 		float myStrongThreshold;
 		float myWeakThreshold;
 		float myWeakAssist;
+
 		float myReach;
+
+		float myUpperSensitivity;
+		float myLowerSensitivity;
+		float myPaddingLevel;
 
 
 		bool IsStrongPoint(const size_t &xLoc, const size_t &yLoc) const;
@@ -71,13 +99,15 @@ class StrongPointAnalysis
 
 		void FindStrongPoints(const size_t &Xindex, const size_t &Yindex, Cluster &newCluster) const;
 		void PadCluster(Cluster &baseCluster) const;
+		vector<Cluster> SubCluster(const Cluster &origCluster) const;
 
-		void AnalyzeBoard(const double &deviationsAbove, const double &deviationsBelow, const float &paddingLevel);
+		void AnalyzeBoard();
 		bool LoadData(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals);
 		void ResetBoard();
 
 		double StrongPointsTouch(const size_t &XLoc, const size_t &YLoc) const;
 		size_t GridSize() const;
+		size_t GridPointsUsed() const;
 };
 
 #endif
