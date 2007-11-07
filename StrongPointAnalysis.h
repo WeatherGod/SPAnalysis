@@ -81,6 +81,8 @@ class StrongPointAnalysis
 		size_t myXSize;
 		size_t myYSize;
 
+		float myDataOffset;
+
 		float myStrongThreshold;
 		float myWeakThreshold;
 		float myWeakAssist;
@@ -102,6 +104,7 @@ class StrongPointAnalysis
 		vector<Cluster> SubCluster(const Cluster &origCluster) const;
 
 		void AnalyzeBoard();
+		void NormalizeBoard();
 		bool LoadData(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals);
 		void ResetBoard();
 

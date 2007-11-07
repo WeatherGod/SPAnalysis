@@ -7,34 +7,30 @@ using namespace std;
 
 
 Cluster::Cluster()
-	:	myMembers(0)
 {
 }
 
-Cluster::Cluster(const Cluster &clustCopy)
-	:	myMembers(clustCopy.myMembers)
-{
-}
 
 Cluster::Cluster(const vector<size_t> &XLocs, const vector<size_t> &YLocs, const vector<float> &dataVals)
-	:	myMembers(XLocs.size())
 {
+	resize(XLocs.size());
+
 	if (XLocs.size() != YLocs.size() || XLocs.size() != dataVals.size())
 	{
-		myMembers.clear();
+		clear();
 	}
 	else
 	{
-		for (size_t index = 0; index < myMembers.size(); index++)
+		for (size_t index = 0; index < size(); index++)
 		{
-			myMembers[index] = ClustMember(XLocs[index], YLocs[index], dataVals[index]);
+			(*this)[index] = ClustMember(XLocs[index], YLocs[index], dataVals[index]);
 		}
 	}
 }
 
 void Cluster::AddMember(const ClustMember &newMember)
 {
-	myMembers.push_back(newMember);
+	push_back(newMember);
 }
 
 void Cluster::AddMember(const size_t &newX, const size_t &newY, const float &newVal)
@@ -42,6 +38,7 @@ void Cluster::AddMember(const size_t &newX, const size_t &newY, const float &new
 	AddMember( ClustMember(newX, newY, newVal) );
 }
 
+/*
 vector<ClustMember> Cluster::GiveMembers() const
 {
 	return(myMembers);
@@ -56,4 +53,4 @@ bool Cluster::IsEmpty() const
 {
 	return(myMembers.empty());
 }
-
+*/
