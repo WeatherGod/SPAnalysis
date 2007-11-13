@@ -82,6 +82,7 @@ class StrongPointAnalysis
 		size_t myYSize;
 
 		float myDataOffset;
+		float myEpsilon;
 
 		float myStrongThreshold;
 		float myWeakThreshold;

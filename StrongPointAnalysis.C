@@ -17,6 +17,7 @@ StrongPointAnalysis::StrongPointAnalysis()
 		myXSize(0),
 		myYSize(0),
 		myDataOffset(0.0),
+		myEpsilon(0.0),
 		myStrongThreshold(NAN),
 		myWeakThreshold(NAN),
 		myWeakAssist(0.0),
@@ -35,6 +36,7 @@ StrongPointAnalysis::StrongPointAnalysis(const Cluster &aCluster,
 		myXSize(xSize),
 		myYSize(ySize),
 		myDataOffset(0.0),
+		myEpsilon(0.0),
 		myStrongThreshold(NAN),
 		myWeakThreshold(NAN),
 		myWeakAssist(0.0),
@@ -73,6 +75,7 @@ StrongPointAnalysis::StrongPointAnalysis(const Cluster &aCluster,
                 myXSize(xSize),
                 myYSize(ySize),
 		myDataOffset(0.0),
+		myEpsilon(0.0),
                 myStrongThreshold(NAN),
                 myWeakThreshold(NAN),
                 myWeakAssist(0.0),
@@ -114,6 +117,7 @@ StrongPointAnalysis::StrongPointAnalysis(const vector<size_t> &xLocs, const vect
 		myXSize(xSize),
 		myYSize(ySize),
 		myDataOffset(0.0),
+		myEpsilon(0.0),
 		myStrongThreshold(NAN),
 		myWeakThreshold(NAN),
 		myWeakAssist(0.0),
@@ -141,6 +145,7 @@ StrongPointAnalysis::StrongPointAnalysis(const vector<size_t> &xLocs, const vect
                 myXSize(xSize),
                 myYSize(ySize),
 		myDataOffset(0.0),
+		myEpsilon(0.0),
                 myStrongThreshold(NAN),
                 myWeakThreshold(NAN),
                 myWeakAssist(0.0),
@@ -328,54 +333,64 @@ void StrongPointAnalysis::AnalyzeBoard()
 		return;
 	}
 
-	double theSum = 0.0;
-	double sumOfLogs = 0.0;
-	size_t pointCount = 0;
-
 	// Normalize in the sense that values are offsetted
 	// so that the lowest value is zero.
-	NormalizeBoard();
+//	NormalizeBoard();
+
+	double theSum = 0.0;
+	double sumOfSquares = 0.0;
+//	double sumOfCubes = 0.0;
+//	double sumOfQuarts = 0.0;
+	size_t pointCount = 0;
 
 	for (size_t Y = 0; Y < myYSize; Y++)
         {
                 for (size_t X = 0; X < myXSize; X++)
                 {
-			if (myPointLabels[Y][X] != UNINIT && myData[Y][X] != 0.0)
+			if (myPointLabels[Y][X] != UNINIT)
 			{
                         	theSum += (double) myData[Y][X];
-	                        sumOfLogs += log((double) myData[Y][X]);
+				sumOfSquares += pow((double) myData[Y][X], 2.0);
+//	                        sumOfCubes += pow((double) myData[Y][X], 3.0);
+//				sumOfQuarts += pow((double) myData[Y][X], 4.0);
 				pointCount++;
 			}
                 }
         }
 
         const double avgVal = theSum / (double) pointCount;
-
-	// Point Estimators of the parameters of the Gamma Distribution.
-	const double statisticD = log(avgVal) - sumOfLogs / (double) pointCount;
-
-
-	const double AlphaVal = (1.0 + sqrt(1.0 + (4.0/3.0) * statisticD)) / (4.0 * statisticD);
-        const double BetaVal = avgVal / AlphaVal;
-
-
-        const double devVal = sqrt(AlphaVal*pow(BetaVal, 2.0));
+        const double devVal = sqrt((sumOfSquares - (pow(avgVal, 2.0) * (double) pointCount)) / (double) (pointCount - 1));
+//	const double skewness = (sumOfCubes - (pow(avgVal, 3.0) * (double) pointCount) 
+//				 - (3.0*avgVal*sumOfSquares) + (3.0*pow(avgVal, 2.0)*theSum))
+//				/ ((double) (pointCount - 1)*pow(devVal, 3.0));
+//	const double kurtosis = ((sumOfQuarts - (4.0 * avgVal * sumOfCubes) + (6.0 * pow(avgVal, 2.0) * sumOfSquares)
+//				 - (4.0 * pow(avgVal, 3.0) * theSum) + ((double) pointCount * pow(avgVal, 4.0)))
+//				/ ((double) (pointCount - 1)*pow(devVal, 4.0)));
 
 	
         cout << "Stat -- Avg: " << avgVal << "   StdDeviation: " << devVal 
-	     << "  theSum: " << theSum << "  sumOfLogs: " << sumOfLogs << "  pointCount: " << pointCount << '\n';
-	cout << "      Alpha: " << AlphaVal << "    Beta: " << BetaVal << "   D: " << statisticD << '\n';
+//	     << "  skewness: " << skewness << "   kurtosis: " << kurtosis 
+	     << "  pointCount: " << pointCount << '\n';
 
+	// When the distribution is flat-ish (relative to the normal distribution), kurtosis is less than 3.0.
+	// When peaked, kurtosis is greater than 3.0.  I want my strong threshold to be further from the mean
+	// when the distribution is flat.  When it is peaked, I don't need the upper threshold to be set as high.
+	// Might still need to scale with skewness.
+	myStrongThreshold = (float) (avgVal + (myUpperSensitivity * devVal));
 
-	myStrongThreshold = (float) max(avgVal + (BetaVal * myUpperSensitivity * devVal), 0.0);
-	myWeakThreshold = (float) max(avgVal + (log(BetaVal * myLowerSensitivity) * devVal), 0.0);
+	// When the distribution is skewed left, skewness is negative.  When the distribution is
+	// skewed right, the skewness is positive.
+	// When the distribution is skewed left, the mean is likely before the peak, so I want the
+	// lower threshold to be set above the mean.  When the distribution is skewed right,
+	// I want the lower threshold to be set below the mean.
+	myWeakThreshold = (float) (avgVal - (myLowerSensitivity * devVal));
 
 	myWeakAssist = myWeakThreshold * (myPaddingLevel / 10.0);
 	cout << "Thresholds    STRONG: " << myStrongThreshold << "   WEAK: " << myWeakThreshold 
 	     << "  WeakAssist: " << myWeakAssist << "  Reach: " << myReach 
-	     << "  DataOffset: " << myDataOffset << '\n';
+	     << "  DataOffset: " << myDataOffset << "  Epsilon: " << myEpsilon << '\n';
 
-	if (!isfinite(AlphaVal) || !isfinite(BetaVal) || !isfinite(devVal) || (devVal < 1.0 && BetaVal < 1.0))
+	if (!isfinite(devVal) || devVal < 1.0)
 	{
 		// Don't let clustering occur.  It would be pretty much useless.
 		cout << "Resetting Board...\n";
@@ -385,20 +400,45 @@ void StrongPointAnalysis::AnalyzeBoard()
 
 void StrongPointAnalysis::NormalizeBoard()
 {
-	vector<float> minVals(myYSize);
-
-	for (size_t yIndex = 0; yIndex < myYSize; yIndex++)
-	{
-		minVals[yIndex] = *min_element(myData[yIndex].begin(), myData[yIndex].end());
-	}
-
-	myDataOffset = *min_element(minVals.begin(), minVals.end());
+	float minVal = NAN;
 
 	for (size_t yIndex = 0; yIndex < myYSize; yIndex++)
 	{
 		for (size_t xIndex = 0; xIndex < myXSize; xIndex++)
 		{
-			myData[yIndex][xIndex] -= myDataOffset;
+			if (myPointLabels[yIndex][xIndex] != UNINIT
+			    && (isnan(minVal) || myData[yIndex][xIndex] < minVal))
+			{
+				// This is the first valid datapoint.  Use it as an initializer,
+				//    or
+				// This value is less than the current minimum value.
+				minVal = myData[yIndex][xIndex];
+			}
+		}
+	}
+
+	if (!isnan(minVal))
+	{
+		myDataOffset = minVal;
+	}
+
+	// Initializing in order to find the smallest non-zero value after normalizing,
+	// Or just use this arbitary value if the other values are bigger.
+	myEpsilon = 0.000000001;
+
+	for (size_t yIndex = 0; yIndex < myYSize; yIndex++)
+	{
+		for (size_t xIndex = 0; xIndex < myXSize; xIndex++)
+		{
+			if (myPointLabels[yIndex][xIndex] != UNINIT)
+			{
+				myData[yIndex][xIndex] -= myDataOffset;
+
+				if (myData[yIndex][xIndex] > 0.0 && myData[yIndex][xIndex] < myEpsilon)
+				{
+					myEpsilon = myData[yIndex][xIndex];
+				}
+			}
 		}
 	}
 }
@@ -501,6 +541,7 @@ void StrongPointAnalysis::ResetBoard()
 	myXSize = 0;
 	myYSize = 0;
 	myDataOffset = 0.0;
+	myEpsilon = 0.0;
 	myStrongThreshold = NAN;
 	myWeakThreshold = NAN;
 	myWeakAssist = 0.0;
@@ -781,7 +822,7 @@ StrongPointAnalysis::DoCluster() const
 		}
 	}
 
-	cout << "Post-SubCluster Count: " << secIterClusts.size() << '\n';
+	cout << "Post-SubCluster Count: " << secIterClusts.size() << "   dataOffset: " << myDataOffset << '\n';
 
 	return(secIterClusts);
 }
@@ -797,6 +838,7 @@ StrongPointAnalysis::SubCluster(const Cluster &origCluster) const
 	// Also, if the original cluster has the same number of members
 	// as the number of gridpoints used in the board, then don't bother
 	// doing any subclustering because it will not cluster any further.
+/*
 	if (origCluster.size() >= 6 && origCluster.size() < GridPointsUsed())
 	{
 		StrongPointAnalysis newSPA(origCluster, myXSize, myYSize, myUpperSensitivity, myLowerSensitivity, myPaddingLevel, myReach);
@@ -815,8 +857,9 @@ StrongPointAnalysis::SubCluster(const Cluster &origCluster) const
 	}
 	else
 	{
+*/
 		theClusters.push_back(origCluster);
-	}
+//	}
 
 	return(theClusters);
 }
