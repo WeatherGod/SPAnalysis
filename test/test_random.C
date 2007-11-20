@@ -14,14 +14,14 @@ using namespace std;
 
 bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
                     const size_t xSize, const size_t ySize, 
-                    const double deviationsAbove, const double deviationsBelow, const float paddingLevel);
+                    const double deviationsAbove, const double deviationsBelow, const float paddingLevel, const float reach);
 
 
 int main()
 {
 	const size_t dataCount = 100000;
 	const size_t xSize = 100;
-	const size_t ySize = 100;
+	const size_t ySize = 150;
 	const float thePower = 0.25;
 
 	const size_t focusPoints = 45;
@@ -40,7 +40,7 @@ int main()
 	vector<size_t> yLocs(dataCount);
 	vector<float> values(dataCount);
 
-	vector< vector<float> > dataVals(ySize, vector<float>(xSize, 0.0));
+	vector< vector<float> > dataVals(ySize, vector<float>(xSize, NAN));
 
 	for (size_t index = 0; index < dataCount; index++)
 	{
@@ -52,16 +52,24 @@ int main()
 		yLocs[index] = (size_t) (yCenters[randFocus] + (randDist * sinf(randAngle)));
 		values[index] = (float) (((double) rand() / (double) RAND_MAX) * thePower);
 
-		dataVals[yLocs[index]][xLocs[index]] += values[index];
+		if (!isnan(dataVals[yLocs[index]][xLocs[index]]))
+		{
+			dataVals[yLocs[index]][xLocs[index]] += values[index];
+		}
+		else
+		{
+			dataVals[yLocs[index]][xLocs[index]] = values[index];
+		}
 	}
 
 
 
-	const double deviationsAbove = 10.0;
-	const double deviationsBelow = -10.0;
-	const float paddingLevel = 0.0;
+	const double deviationsAbove = 1.5;
+	const double deviationsBelow = -0.5;
+	const float paddingLevel = 2.0;
+	const float reach = 2.5;
 
-	StrongPointAnalysis theSPA(xLocs, yLocs, values, xSize, ySize, deviationsAbove, deviationsBelow, paddingLevel);
+	StrongPointAnalysis theSPA(xLocs, yLocs, values, xSize, ySize, deviationsAbove, deviationsBelow, paddingLevel, reach);
 
 	cerr << "Loaded...\n";
 
@@ -90,7 +98,7 @@ int main()
 */
 	
 
-	if (!OutputClusters("output.txt", dataVals, theClusters, xSize, ySize, deviationsAbove, deviationsBelow, paddingLevel))
+	if (!OutputClusters("output.txt", dataVals, theClusters, xSize, ySize, deviationsAbove, deviationsBelow, paddingLevel, reach))
 	{
 		cerr << "Problem output to file...\n";
 		return(1);
@@ -103,7 +111,7 @@ int main()
 
 bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
 		    const size_t xSize, const size_t ySize, 
-		    const double deviationsAbove, const double deviationsBelow, const float paddingLevel)
+		    const double deviationsAbove, const double deviationsBelow, const float paddingLevel, const float reach)
 {
 
 	ofstream outFile(filename.c_str());
@@ -114,7 +122,7 @@ bool OutputClusters(const string &filename, const vector< vector<float> > &dataV
 		return(false);
 	}
 
-	outFile << xSize << ' ' << ySize << ' ' << deviationsAbove << ' ' << deviationsBelow << ' ' << paddingLevel << '\n';
+	outFile << xSize << ' ' << ySize << ' ' << deviationsAbove << ' ' << deviationsBelow << ' ' << paddingLevel << ' ' << reach << '\n';
 
 	for (size_t yIndex = 0; yIndex < ySize; yIndex++)
 	{

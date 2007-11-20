@@ -83,7 +83,7 @@ int main(int argc, char* argv[])
 
 
 	const float upperSensitivity = 1.5;
-	const float lowerSensitivity = -0.75;
+	const float lowerSensitivity = 1.7;
 	const float paddingLevel = 5.0;
 	const float reach = 2.5;
 
@@ -123,7 +123,7 @@ bool OutputClusters(const string &filename, const vector< vector<float> > &dataV
 		return(false);
 	}
 
-	outFile << xSize << ' ' << ySize << ' ' << upperSensitivity << ' ' << lowerSensitivity << ' ' << paddingLevel << '\n';
+	outFile << xSize << ' ' << ySize << ' ' << upperSensitivity << ' ' << lowerSensitivity << ' ' << paddingLevel << ' ' << reach << '\n';
 
 
 	for (size_t yIndex = 0; yIndex < ySize; yIndex++)
