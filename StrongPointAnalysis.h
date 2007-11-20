@@ -99,6 +99,7 @@ class StrongPointAnalysis
 		bool IsWeakPoint(const size_t &xLoc, const size_t &yLoc) const;
 		bool IsIgnorablePoint(const size_t &xLoc, const size_t &yLoc) const;
 		bool BeenChecked(const size_t &xLoc, const size_t &yLoc) const;
+		bool IsUninitialized(const size_t &xLoc, const size_t &yLoc) const;
 
 		void FindStrongPoints(const size_t &Xindex, const size_t &Yindex, Cluster &newCluster) const;
 		void PadCluster(Cluster &baseCluster) const;

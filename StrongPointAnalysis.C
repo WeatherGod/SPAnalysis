@@ -347,7 +347,7 @@ void StrongPointAnalysis::AnalyzeBoard()
         {
                 for (size_t X = 0; X < myXSize; X++)
                 {
-			if (myPointLabels[Y][X] != UNINIT)
+			if (!IsUninitialized(X, Y))
 			{
                         	theSum += (double) myData[Y][X];
 				sumOfSquares += pow((double) myData[Y][X], 2.0);
@@ -406,7 +406,7 @@ void StrongPointAnalysis::NormalizeBoard()
 	{
 		for (size_t xIndex = 0; xIndex < myXSize; xIndex++)
 		{
-			if (myPointLabels[yIndex][xIndex] != UNINIT
+			if (!IsUninitialized(xIndex, yIndex)
 			    && (isnan(minVal) || myData[yIndex][xIndex] < minVal))
 			{
 				// This is the first valid datapoint.  Use it as an initializer,
@@ -430,7 +430,7 @@ void StrongPointAnalysis::NormalizeBoard()
 	{
 		for (size_t xIndex = 0; xIndex < myXSize; xIndex++)
 		{
-			if (myPointLabels[yIndex][xIndex] != UNINIT)
+			if (!IsUninitialized(xIndex, yIndex))
 			{
 				myData[yIndex][xIndex] -= myDataOffset;
 
@@ -551,6 +551,11 @@ void StrongPointAnalysis::ResetBoard()
 	myLowerSensitivity = 0.0;
 }
 
+bool StrongPointAnalysis::IsUninitialized(const size_t &XLoc, const size_t &YLoc) const
+{
+	return( UNINIT == myPointLabels[YLoc][XLoc] );
+}
+
 bool StrongPointAnalysis::BeenChecked(const size_t &XLoc, const size_t &YLoc) const
 {
 	return( UNCHECKED < myPointLabels[YLoc][XLoc] );
@@ -558,6 +563,14 @@ bool StrongPointAnalysis::BeenChecked(const size_t &XLoc, const size_t &YLoc) co
 
 bool StrongPointAnalysis::IsIgnorablePoint(const size_t &XLoc, const size_t &YLoc) const
 {
+	if ( IsUninitialized(XLoc, YLoc) )
+	{
+		// If it is uninitialized, then it is ignorable, right?
+		// But don't set to IGNORABLE because the data at this point
+		// is invalid.
+		return(true);
+	}
+
 	if ( BeenChecked(XLoc, YLoc) )
 	{
 		return( IGNORABLE == myPointLabels[YLoc][XLoc] );
@@ -732,6 +745,9 @@ double StrongPointAnalysis::StrongPointsTouch(const size_t &XLoc, const size_t &
 
 bool StrongPointAnalysis::IsWeakPoint(const size_t &XLoc, const size_t &YLoc) const
 {
+	// Assume that the caller deals with uninitialized points appropriately.
+	// I can't say true or false without context.
+
 	if ( BeenChecked(XLoc, YLoc) )
 	{
 		return( WEAK == myPointLabels[YLoc][XLoc] );
@@ -774,7 +790,8 @@ StrongPointAnalysis::DoCluster() const
 			// for a cluster that has already been found,
 			// or it is either weak or ignorable, which
 			// we don't care about anyway.
-			if (!BeenChecked(Xindex, Yindex))
+			// Also, don't bother with uninitialized points.
+			if (!IsUninitialized(Xindex, Yindex) && !BeenChecked(Xindex, Yindex))
 			{
 
 				Cluster newCluster;
@@ -868,6 +885,7 @@ StrongPointAnalysis::SubCluster(const Cluster &origCluster) const
 void
 StrongPointAnalysis::FindStrongPoints(const size_t &Xindex, const size_t &Yindex, Cluster &newCluster) const
 {
+	// Assume that the location [Xindex, Yindex] has already been checked as an initialized point.
 	if (IsStrongPoint(Xindex, Yindex))
 	{
 		newCluster.AddMember(Xindex, Yindex, myData[Yindex][Xindex]);
@@ -883,13 +901,15 @@ StrongPointAnalysis::FindStrongPoints(const size_t &Xindex, const size_t &Yindex
 			{
 				if ((xOffset != 0 || yOffset != 0) &&
 				    myReach > hypot((double) xOffset, (double) yOffset) &&
+				    !IsUninitialized(Xindex + xOffset, Yindex + yOffset) &&
 				    !BeenChecked(Xindex + xOffset, Yindex + yOffset))
 				{
 					// Don't Network from the same location as [Xindex, Yindex],
 					// And, don't network from a spot that already has been checked,
 					// because if it has been checked, then it is either a strong point
 					// that I already know about, or it is a weak or ignorable point
-					// that I don't care about.
+					// that I don't care about.  Also, don't bother with
+					// uninitialized points.
 					FindStrongPoints(Xindex + xOffset, Yindex + yOffset, newCluster);
 				}
 			}
@@ -926,7 +946,7 @@ StrongPointAnalysis::PadCluster(Cluster &baseCluster) const
 		const size_t endX = ((aStrongPoint->XLoc + 1) < myXSize ? aStrongPoint->XLoc + 1 : aStrongPoint->XLoc);
 		const size_t endY = ((aStrongPoint->YLoc + 1) < myYSize ? aStrongPoint->YLoc + 1 : aStrongPoint->YLoc);
 */
-
+		// Gather all of the neighboring points to this one within the radius myReach.
 		for (int yOffset = startY; yOffset <= endY; yOffset++)
 		{
 			for (int xOffset = startX; xOffset <= endX; xOffset++)
@@ -937,6 +957,7 @@ StrongPointAnalysis::PadCluster(Cluster &baseCluster) const
 					const PointLoc clustDomainPoint(aStrongPoint->XLoc + xOffset, 
 									aStrongPoint->YLoc + yOffset);
 
+					// Only keep new points.
 					if (!binary_search(strongLocs.begin(), strongLocs.end(), clustDomainPoint) &&
 					    !binary_search(clustDomain.begin(), clustDomain.end(), clustDomainPoint))
 					{
@@ -957,7 +978,7 @@ StrongPointAnalysis::PadCluster(Cluster &baseCluster) const
 	     pointCheck != clustDomain.end();
 	     pointCheck++)
 	{
-		if (IsWeakPoint(pointCheck->XLoc, pointCheck->YLoc))
+		if (!IsUninitialized(pointCheck->XLoc, pointCheck->YLoc) && IsWeakPoint(pointCheck->XLoc, pointCheck->YLoc))
 		{
 			baseCluster.AddMember(pointCheck->XLoc, pointCheck->YLoc, myData[pointCheck->YLoc][pointCheck->XLoc]);
 		}
