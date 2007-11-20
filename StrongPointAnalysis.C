@@ -600,10 +600,12 @@ bool StrongPointAnalysis::IsStrongPoint(const size_t &Xindex, const size_t &Yind
 		return( STRONG == myPointLabels[Yindex][Xindex] );
 	}
 
+/*
 	if ( IsIgnorablePoint(Xindex, Yindex) )
 	{
 		return(false);
 	}
+*/
 
         if ( myData[Yindex][Xindex] >= myStrongThreshold )
 	//  The if statement asks if the point is strong enough to stand on its own.
@@ -613,6 +615,43 @@ bool StrongPointAnalysis::IsStrongPoint(const size_t &Xindex, const size_t &Yind
 		myPointLabels[Yindex][Xindex] = STRONG;
                 return(true);
 	}
+
+	else
+	{
+	        double surroundValue = 0.0;
+
+	        const int xStart = (Xindex > 0 ? -1 : 0);
+        	const int xEnd = (Xindex + 1 < myXSize ? 1 : 0);
+        	const int yStart = (Yindex > 0 ? -1 : 0);
+	        const int yEnd = (Yindex + 1 < myYSize ? 1 : 0);
+
+	        for (int yIndex = yStart; yIndex <= yEnd; yIndex++)
+        	{
+                	for (int xIndex = xStart; xIndex <= xEnd; xIndex++)
+	                {
+        	                if (xIndex != 0 || yIndex != 0)
+                	        //  only count points that are surrounding (XLoc, YLoc), not (XLoc, YLoc) itself...
+                        	{
+                                	if (!IsUninitialized(Xindex + xIndex, Yindex + yIndex))
+                                	{
+                                        	surroundValue += myData[Yindex + yIndex][Xindex + xIndex];
+					}
+                                }
+                        }
+                }
+	
+		if (myData[Yindex][Xindex] + (surroundValue / 10.0) >= myStrongThreshold)
+		{
+			myPointLabels[Yindex][Xindex] = STRONG;
+			return(true);
+		}
+		else
+		{
+			return(false);
+		}
+	}
+
+/*
 	else
         {
 		// The objective of the following algorithm is to prove that the point is a strong point.
@@ -708,6 +747,7 @@ bool StrongPointAnalysis::IsStrongPoint(const size_t &Xindex, const size_t &Yind
 
                 return(!CanMakeLine);	// if no lines can be made, then the point is a strong point
         }
+*/
 }
 
 
@@ -855,7 +895,7 @@ StrongPointAnalysis::SubCluster(const Cluster &origCluster) const
 	// Also, if the original cluster has the same number of members
 	// as the number of gridpoints used in the board, then don't bother
 	// doing any subclustering because it will not cluster any further.
-/*
+
 	if (origCluster.size() >= 6 && origCluster.size() < GridPointsUsed())
 	{
 		StrongPointAnalysis newSPA(origCluster, myXSize, myYSize, myUpperSensitivity, myLowerSensitivity, myPaddingLevel, myReach);
@@ -863,7 +903,7 @@ StrongPointAnalysis::SubCluster(const Cluster &origCluster) const
 		const vector<Cluster> subClusters = newSPA.DoCluster();
 
 		// If I didn't get any division of clusters, then keep the original.
-		if (!subClusters.empty())
+		if (subClusters.size() > 1)
 		{
 			theClusters.insert(theClusters.end(), subClusters.begin(), subClusters.end());	
 		}
@@ -874,9 +914,9 @@ StrongPointAnalysis::SubCluster(const Cluster &origCluster) const
 	}
 	else
 	{
-*/
+
 		theClusters.push_back(origCluster);
-//	}
+	}
 
 	return(theClusters);
 }
