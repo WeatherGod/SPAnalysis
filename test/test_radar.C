@@ -5,6 +5,9 @@ using namespace std;
 #include <string>
 #include <vector>
 
+#include <unistd.h>             // for optarg, opterr, optopt
+#include <getopt.h>             // for getopt_long()
+
 #include "StrongPointAnalysis.h"
 #include "Cluster.h"
 
@@ -19,21 +22,103 @@ bool OutputClusters(const string &filename, const vector< vector<float> > &dataV
                     const size_t xSize, const size_t ySize, 
                     const float upperSensitivity, const float lowerSensitivity, const float paddingLevel, const float reach);
 
+void PrintHelp()
+{
+	cerr << "test_radar -i INPUT_FILE -o OUTPUT_FILE\n"
+	     << "           -u UPPER_SENSITIVITY -l LOWER_SENSITIVITY\n"
+	     << "           -p PADDING_LEVEL -r REACH\n"
+	     << "           [-h | --help]\n\n";
+}
+
 
 int main(int argc, char* argv[])
 {
-	if (argc < 2)
+	float upperSensitivity = NAN;
+	float lowerSensitivity = NAN;
+	float paddingLevel = NAN;
+	float reach = NAN;
+
+	string inputFilename = "";
+	string outputFilename = "";
+
+	int OptionIndex = 0;
+	int OptionChar = 0;
+	bool OptionError = false;
+	opterr = 0;			// don't print out error messages, I will handle that.
+
+	static struct option TheLongOptions[] = {
+		{"input", 1, NULL, 'i'},
+		{"output", 1, NULL, 'o'},
+		{"upper", 1, NULL, 'u'},
+		{"lower", 1, NULL, 'l'},
+		{"padding", 1, NULL, 'p'},
+		{"reach", 1, NULL, 'r'},
+		{"help", 0, NULL, 'h'},
+		{0, 0, 0, 0}
+	};
+
+	while ((OptionChar = getopt_long(argc, argv, "i:o:u:l:p:r:h", TheLongOptions, &OptionIndex)) != -1)
 	{
-		cerr << "No filename given!\n";
+		switch (OptionChar)
+		{
+		case 'i':
+			inputFilename = optarg;
+			break;
+		case 'o':
+			outputFilename = optarg;
+			break;
+		case 'u':
+			upperSensitivity = atof(optarg);
+			break;
+		case 'l':
+			lowerSensitivity = atof(optarg);
+			break;
+		case 'p':
+			paddingLevel = atof(optarg);
+			break;
+		case 'r':
+			reach = atof(optarg);
+			break;
+		case 'h':
+			PrintHelp();
+			return(1);
+			break;
+		case '?':
+			cerr << "ERROR: Unknown arguement: -" << (char) optopt << endl;
+			OptionError = true;
+			break;
+		case ':':
+			cerr << "ERROR: Missing value for arguement: -" << (char) optopt << endl;
+			OptionError = true;
+			break;
+		default:
+			cerr << "ERROR: Programming error... Unaccounted option: -" << (char) OptionChar << endl;
+			OptionError = true;
+			break;
+		}
+	}
+
+	if (OptionError)
+	{
+		PrintHelp();
+		return(EXIT_FAILURE);
+	}
+
+	if  (inputFilename.empty() || outputFilename.empty()
+	  || isnan(lowerSensitivity) || isnan(upperSensitivity)
+	  || isnan(paddingLevel) || isnan(reach))
+	{
+		cerr << "Missing arguement\n";
+		PrintHelp();
 		return(EXIT_FAILURE);
 	}
 
 
-	NcFile radarFile(argv[1]);
+	NcFile radarFile(inputFilename.c_str());
 
 	if (!radarFile.is_valid())
 	{
-		cerr << "Could not open radar file: " << argv[1] << " for reading.\n";
+		cerr << "Could not open radar file: " << inputFilename << " for reading.\n";
 		return(EXIT_FAILURE);
 	}
 
@@ -81,12 +166,6 @@ int main(int argc, char* argv[])
 
 	cout << "values.size(): " << values.size() << endl;
 
-
-	const float upperSensitivity = 1.5;
-	const float lowerSensitivity = 1.7;
-	const float paddingLevel = 5.0;
-	const float reach = 2.5;
-
 	StrongPointAnalysis theSPA(xLocs, yLocs, values, 
 				   xSize, ySize, 
 				   upperSensitivity, lowerSensitivity, paddingLevel, reach);
@@ -96,16 +175,14 @@ int main(int argc, char* argv[])
 	vector<Cluster> theClusters = theSPA.DoCluster();
 
 	cerr << "Cluster Count: " << theClusters.size() << endl;
-
-	char* outfileName = "output.txt";
 	
-	if (!OutputClusters(outfileName, theValues, theClusters, xSize, ySize, upperSensitivity, lowerSensitivity, paddingLevel, reach))
+	if (!OutputClusters(outputFilename, theValues, theClusters, xSize, ySize, upperSensitivity, lowerSensitivity, paddingLevel, reach))
 	{
-		cerr << "Problem outputing to file: " << outfileName << '\n';
+		cerr << "Problem outputing to file: " << outputFilename << '\n';
 		return(EXIT_FAILURE);
 	}
 
-	return(0);
+	return(EXIT_SUCCESS);
 }
 
 
