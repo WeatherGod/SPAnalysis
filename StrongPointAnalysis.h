@@ -41,17 +41,13 @@ class StrongPointAnalysis
 		StrongPointAnalysis();
 		StrongPointAnalysis(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
 				    const size_t &xSize, const size_t &ySize,
-				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach);
+				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach,
+				    const int &clusterLevel = 0);
 		StrongPointAnalysis(const Cluster &aClust, 
 				    const size_t &xSize, const size_t &ySize, 
-				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach);
+				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach,
+				    const int &clusterLevel = 0);
 
-		StrongPointAnalysis(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
-                                    const size_t &xSize, const size_t &ySize,
-                                    const float &sensitivityLevel, const float &paddingLevel, const float &reach);
-                StrongPointAnalysis(const Cluster &aClust, 
-                                    const size_t &xSize, const size_t &ySize,
-                                    const float &sensitivityLevel, const float &paddingLevel, const float &reach);
 
 		void PrintBoard() const;
 
@@ -63,14 +59,6 @@ class StrongPointAnalysis
 			       const size_t &xSize, const size_t &ySize,
 			       const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach);
 
-		bool LoadBoard(const Cluster &aClust,
-                               const size_t &xSize, const size_t &ySize,
-                               const float &sensitivityLevel, const float &paddingLevel, const float &reach);
-
-                bool LoadBoard(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
-                               const size_t &xSize, const size_t &ySize,
-                               const float &sensitivityLevel, const float &paddingLevel, const float &reach);
-
 
 		vector<Cluster> DoCluster() const;
 		
@@ -81,18 +69,16 @@ class StrongPointAnalysis
 		size_t myXSize;
 		size_t myYSize;
 
-		float myDataOffset;
-		float myEpsilon;
-
 		float myStrongThreshold;
 		float myWeakThreshold;
 		float myWeakAssist;
-
+		
 		float myReach;
-
 		float myUpperSensitivity;
 		float myLowerSensitivity;
 		float myPaddingLevel;
+
+		int myClusterLevel;
 
 
 		bool IsStrongPoint(const size_t &xLoc, const size_t &yLoc) const;
@@ -106,7 +92,6 @@ class StrongPointAnalysis
 		vector<Cluster> SubCluster(const Cluster &origCluster) const;
 
 		void AnalyzeBoard();
-		void NormalizeBoard();
 		bool LoadData(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals);
 		void ResetBoard();
 

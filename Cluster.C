@@ -38,19 +38,27 @@ void Cluster::AddMember(const size_t &newX, const size_t &newY, const float &new
 	AddMember( ClustMember(newX, newY, newVal) );
 }
 
-/*
-vector<ClustMember> Cluster::GiveMembers() const
+vector<ClustMember>::const_iterator
+Cluster::MaxMember() const
 {
-	return(myMembers);
-}
+	if (!empty())
+	{
+		vector<ClustMember>::const_iterator maxElement = begin();
 
-size_t Cluster::MemberCount() const
-{
-	return(myMembers.size());
-}
+		for (vector<ClustMember>::const_iterator aMember = (begin() + 1);
+		     aMember != end();
+		     aMember++)
+		{
+			if (aMember->memberVal > maxElement->memberVal)
+			{
+				maxElement = aMember;
+			}
+		}
 
-bool Cluster::IsEmpty() const
-{
-	return(myMembers.empty());
+		return(maxElement);
+	}
+	else
+	{
+		return(end());
+	}
 }
-*/

@@ -44,13 +44,7 @@ class Cluster : public vector<ClustMember>
 
 		void AddMember(const ClustMember &newMember);
 		void AddMember(const size_t &newX, const size_t &newY, const float &newVal);
-//		vector<ClustMember> GiveMembers() const;
-
-//		size_t MemberCount() const;
-//		bool IsEmpty() const;
-
-//	private:
-//		vector<ClustMember> myMembers;
+		vector<ClustMember>::const_iterator MaxMember() const;
 };
 
 
