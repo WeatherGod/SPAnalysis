@@ -2,7 +2,7 @@
 #define _STRONGPOINTANALYSIS_H
 
 #include <vector>
-#include <cctype>	// for size_t
+#include <cstddef>	// for size_t
 
 #include "Cluster.h"
 
@@ -41,23 +41,25 @@ class StrongPointAnalysis
 		StrongPointAnalysis();
 		StrongPointAnalysis(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
 				    const size_t &xSize, const size_t &ySize,
-				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach,
-				    const int &clusterLevel = 0);
+				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, 
+				    const float &reach, const int &subClustDepth);
 		StrongPointAnalysis(const Cluster &aClust, 
 				    const size_t &xSize, const size_t &ySize, 
-				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach,
-				    const int &clusterLevel = 0);
+				    const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, 
+				    const float &reach, const int &subClustDepth);
 
 
 		void PrintBoard() const;
 
 		bool LoadBoard(const Cluster &aClust, 
 			       const size_t &xSize, const size_t &ySize,
-			       const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach);
+			       const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel,
+			       const float &reach, const int &subClustDepth);
 
 		bool LoadBoard(const vector<size_t> &xLocs, const vector<size_t> &yLocs, const vector<float> &dataVals,
 			       const size_t &xSize, const size_t &ySize,
-			       const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel, const float &reach);
+			       const float &upperSensitivity, const float &lowerSensitivity, const float &paddingLevel,
+			       const float &reach, const int &subClustDepth);
 
 
 		vector<Cluster> DoCluster() const;
@@ -77,8 +79,7 @@ class StrongPointAnalysis
 		float myUpperSensitivity;
 		float myLowerSensitivity;
 		float myPaddingLevel;
-
-		int myClusterLevel;
+		int mySubClustDepth;
 
 
 		bool IsStrongPoint(const size_t &xLoc, const size_t &yLoc) const;
