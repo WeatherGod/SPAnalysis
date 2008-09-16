@@ -14,7 +14,8 @@ using namespace std;
 
 bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
                     const size_t xSize, const size_t ySize, 
-                    const double deviationsAbove, const double deviationsBelow, const float paddingLevel, const float reach);
+                    const double deviationsAbove, const double deviationsBelow, const float paddingLevel, const float reach,
+		    const int subClustDepth);
 
 
 int main()
@@ -68,37 +69,20 @@ int main()
 	const double deviationsBelow = -0.5;
 	const float paddingLevel = 2.0;
 	const float reach = 2.5;
+	const int subClustDepth = 0;
 
-	StrongPointAnalysis theSPA(xLocs, yLocs, values, xSize, ySize, deviationsAbove, deviationsBelow, paddingLevel, reach);
+	StrongPointAnalysis theSPA(xLocs, yLocs, values, xSize, ySize, deviationsAbove, deviationsBelow, 
+								       paddingLevel, reach, subClustDepth);
 
 	cerr << "Loaded...\n";
 
 	vector<Cluster> theClusters = theSPA.DoCluster();
 
 	cerr << "Cluster Count: " << theClusters.size() << endl;
-/*
-	vector<Cluster> secIterClusts(0);
-
-
-	for (vector<Cluster>::const_iterator aClust = theClusters.begin();
-	     aClust != theClusters.end();
-	     aClust++)
-	{
-		if (aClust->MemberCount() >= 6)
-		{
-			theSPA.LoadBoard(*aClust, xSize, ySize, deviationsAbove, deviationsBelow, paddingLevel);
-
-			const vector<Cluster> newClusts = theSPA.DoCluster();
-
-			secIterClusts.insert(secIterClusts.end(), newClusts.begin(), newClusts.end());
-		}
-	}
-
-	theClusters.insert(theClusters.end(), secIterClusts.begin(), secIterClusts.end());
-*/
 	
 
-	if (!OutputClusters("output.txt", dataVals, theClusters, xSize, ySize, deviationsAbove, deviationsBelow, paddingLevel, reach))
+	if (!OutputClusters("output.txt", dataVals, theClusters, xSize, ySize, deviationsAbove, deviationsBelow, 
+									       paddingLevel, reach, subClustDepth))
 	{
 		cerr << "Problem output to file...\n";
 		return(1);
@@ -111,7 +95,8 @@ int main()
 
 bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
 		    const size_t xSize, const size_t ySize, 
-		    const double deviationsAbove, const double deviationsBelow, const float paddingLevel, const float reach)
+		    const double deviationsAbove, const double deviationsBelow, const float paddingLevel, 
+		    const float reach, const int subClustDepth)
 {
 
 	ofstream outFile(filename.c_str());
@@ -122,8 +107,10 @@ bool OutputClusters(const string &filename, const vector< vector<float> > &dataV
 		return(false);
 	}
 
-	outFile << xSize << ' ' << ySize << ' ' << deviationsAbove << ' ' << deviationsBelow << ' ' << paddingLevel << ' ' << reach << '\n';
+	outFile << xSize << ' ' << ySize << ' ' << deviationsAbove << ' ' << deviationsBelow << ' ' 
+	        << paddingLevel << ' ' << reach << ' ' << subClustDepth << '\n';
 
+/*
 	for (size_t yIndex = 0; yIndex < ySize; yIndex++)
 	{
 		outFile << dataVals[yIndex][0];
@@ -133,6 +120,7 @@ bool OutputClusters(const string &filename, const vector< vector<float> > &dataV
 		}
 		outFile << '\n';
 	}
+*/
 
 	outFile << theClusters.size() << '\n';
 

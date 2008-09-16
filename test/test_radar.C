@@ -20,13 +20,14 @@ using namespace std;
 
 bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
                     const size_t xSize, const size_t ySize, 
-                    const float upperSensitivity, const float lowerSensitivity, const float paddingLevel, const float reach);
+                    const float upperSensitivity, const float lowerSensitivity, const float paddingLevel, 
+		    const float reach, const int subClustDepth);
 
 void PrintHelp()
 {
 	cerr << "test_radar -i INPUT_FILE -o OUTPUT_FILE\n"
 	     << "           -u UPPER_SENSITIVITY -l LOWER_SENSITIVITY\n"
-	     << "           -p PADDING_LEVEL -r REACH\n"
+	     << "           -p PADDING_LEVEL -r REACH -s SUBCLUST\n"
 	     << "           [-h | --help]\n\n";
 }
 
@@ -37,6 +38,7 @@ int main(int argc, char* argv[])
 	float lowerSensitivity = NAN;
 	float paddingLevel = NAN;
 	float reach = NAN;
+	int subClustDepth = 0;
 
 	string inputFilename = "";
 	string outputFilename = "";
@@ -53,11 +55,12 @@ int main(int argc, char* argv[])
 		{"lower", 1, NULL, 'l'},
 		{"padding", 1, NULL, 'p'},
 		{"reach", 1, NULL, 'r'},
+		{"subclust", 1, NULL, 's'},
 		{"help", 0, NULL, 'h'},
 		{0, 0, 0, 0}
 	};
 
-	while ((OptionChar = getopt_long(argc, argv, "i:o:u:l:p:r:h", TheLongOptions, &OptionIndex)) != -1)
+	while ((OptionChar = getopt_long(argc, argv, "i:o:u:l:p:r:s:h", TheLongOptions, &OptionIndex)) != -1)
 	{
 		switch (OptionChar)
 		{
@@ -79,16 +82,19 @@ int main(int argc, char* argv[])
 		case 'r':
 			reach = atof(optarg);
 			break;
+		case 's':
+			subClustDepth = atoi(optarg);
+			break;
 		case 'h':
 			PrintHelp();
 			return(1);
 			break;
 		case '?':
-			cerr << "ERROR: Unknown arguement: -" << (char) optopt << endl;
+			cerr << "ERROR: Unknown argument: -" << (char) optopt << endl;
 			OptionError = true;
 			break;
 		case ':':
-			cerr << "ERROR: Missing value for arguement: -" << (char) optopt << endl;
+			cerr << "ERROR: Missing value for argument: -" << (char) optopt << endl;
 			OptionError = true;
 			break;
 		default:
@@ -108,7 +114,7 @@ int main(int argc, char* argv[])
 	  || isnan(lowerSensitivity) || isnan(upperSensitivity)
 	  || isnan(paddingLevel) || isnan(reach))
 	{
-		cerr << "Missing arguement\n";
+		cerr << "Missing argument\n";
 		PrintHelp();
 		return(EXIT_FAILURE);
 	}
@@ -118,12 +124,22 @@ int main(int argc, char* argv[])
 
 	if (!radarFile.is_valid())
 	{
-		cerr << "Could not open radar file: " << inputFilename << " for reading.\n";
+		cerr << "ERROR: Could not open radar file: " << inputFilename << " for reading.\n";
 		return(EXIT_FAILURE);
 	}
 
 
+	
 	NcVar* reflectVar = radarFile.get_var("value");
+
+	if (reflectVar == NULL)
+	{
+		cerr << "ERROR: invalid data file.  No variable called 'value'!\n";
+		radarFile.close();
+		return(EXIT_FAILURE);
+	}
+		
+
 	long* dataEdges = reflectVar->edges();	// [0] - time, [1] - lat, [2] - lon
 	double* dataVals = new double[reflectVar->num_vals()];
 	const size_t xSize = dataEdges[2];
@@ -168,7 +184,7 @@ int main(int argc, char* argv[])
 
 	StrongPointAnalysis theSPA(xLocs, yLocs, values, 
 				   xSize, ySize, 
-				   upperSensitivity, lowerSensitivity, paddingLevel, reach);
+				   upperSensitivity, lowerSensitivity, paddingLevel, reach, subClustDepth);
 
 	cerr << "Loaded...\n";
 
@@ -176,7 +192,8 @@ int main(int argc, char* argv[])
 
 	cerr << "Cluster Count: " << theClusters.size() << endl;
 	
-	if (!OutputClusters(outputFilename, theValues, theClusters, xSize, ySize, upperSensitivity, lowerSensitivity, paddingLevel, reach))
+	if (!OutputClusters(outputFilename, theValues, theClusters, xSize, ySize, upperSensitivity, lowerSensitivity, 
+										  paddingLevel, reach, subClustDepth))
 	{
 		cerr << "Problem outputing to file: " << outputFilename << '\n';
 		return(EXIT_FAILURE);
@@ -189,7 +206,8 @@ int main(int argc, char* argv[])
 
 bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
 		    const size_t xSize, const size_t ySize, 
-		    const float upperSensitivity, const float lowerSensitivity, const float paddingLevel, const float reach)
+		    const float upperSensitivity, const float lowerSensitivity, const float paddingLevel, 
+		    const float reach, const int subClustDepth)
 {
 
 	ofstream outFile(filename.c_str());
@@ -200,9 +218,10 @@ bool OutputClusters(const string &filename, const vector< vector<float> > &dataV
 		return(false);
 	}
 
-	outFile << xSize << ' ' << ySize << ' ' << upperSensitivity << ' ' << lowerSensitivity << ' ' << paddingLevel << ' ' << reach << '\n';
+	outFile << xSize << ' ' << ySize << ' ' << upperSensitivity << ' ' << lowerSensitivity << ' ' 
+		<< paddingLevel << ' ' << reach << ' ' << subClustDepth << '\n';
 
-
+/*
 	for (size_t yIndex = 0; yIndex < ySize; yIndex++)
 	{
 		outFile << dataVals[yIndex][0];
@@ -212,6 +231,7 @@ bool OutputClusters(const string &filename, const vector< vector<float> > &dataV
 		}
 		outFile << '\n';
 	}
+*/
 
 	outFile << theClusters.size() << '\n';
 
