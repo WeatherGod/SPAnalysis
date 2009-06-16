@@ -5,6 +5,8 @@ using namespace std;
 #include <string>
 #include <vector>
 
+#include <cstdlib>		// for atof(), atoi(), EXIT_SUCCESS, EXIT_FAILURE
+
 #include <unistd.h>             // for optarg, opterr, optopt
 #include <getopt.h>             // for getopt_long()
 
@@ -18,10 +20,45 @@ using namespace std;
 
 // g++ -g test_radar.C -o test_radar -I /usr/include/BUtils -L ./ -lSPAnalysis -l BUtils -lm
 
-bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
-                    const size_t xSize, const size_t ySize, 
-                    const float upperSensitivity, const float lowerSensitivity, const float paddingLevel, 
-		    const float reach, const int subClustDepth);
+struct ClustParams_t
+{
+	float upperSensitivity;
+	float lowerSensitivity;
+	float paddingLevel;
+	float reach;
+	int subClustDepth;
+};
+
+struct RadarData_t
+{
+	string inputFilename;
+
+	double* dataVals;
+	string var_LongName;
+	string var_Units;
+
+	long* dataEdges;
+
+	double* latVals;
+	string latUnits;
+	double latSpacing;
+
+	double* lonVals;
+	string lonUnits;
+	double lonSpacing;
+
+	time_t scanTime;
+	string timeUnits;
+
+	string fileTitle;
+};
+
+string GrabAttribute(const NcVar* dataVar, const int attIndex);
+bool OutputClusters(const string &filename, const vector<Cluster> &theClusters,
+        	    const RadarData_t &radarInfo, const ClustParams_t &clustParam);
+
+RadarData_t ReadRadarFile(const string &filename);
+
 
 void PrintHelp()
 {
@@ -34,11 +71,12 @@ void PrintHelp()
 
 int main(int argc, char* argv[])
 {
-	float upperSensitivity = NAN;
-	float lowerSensitivity = NAN;
-	float paddingLevel = NAN;
-	float reach = NAN;
-	int subClustDepth = 0;
+	ClustParams_t clustParam;
+	clustParam.upperSensitivity = NAN;	
+	clustParam.lowerSensitivity = NAN;
+	clustParam.paddingLevel = NAN;
+	clustParam.reach = NAN;
+	clustParam.subClustDepth = 0;
 
 	string inputFilename = "";
 	string outputFilename = "";
@@ -71,19 +109,19 @@ int main(int argc, char* argv[])
 			outputFilename = optarg;
 			break;
 		case 'u':
-			upperSensitivity = atof(optarg);
+			clustParam.upperSensitivity = atof(optarg);
 			break;
 		case 'l':
-			lowerSensitivity = atof(optarg);
+			clustParam.lowerSensitivity = atof(optarg);
 			break;
 		case 'p':
-			paddingLevel = atof(optarg);
+			clustParam.paddingLevel = atof(optarg);
 			break;
 		case 'r':
-			reach = atof(optarg);
+			clustParam.reach = atof(optarg);
 			break;
 		case 's':
-			subClustDepth = atoi(optarg);
+			clustParam.subClustDepth = atoi(optarg);
 			break;
 		case 'h':
 			PrintHelp();
@@ -111,21 +149,113 @@ int main(int argc, char* argv[])
 	}
 
 	if  (inputFilename.empty() || outputFilename.empty()
-	  || isnan(lowerSensitivity) || isnan(upperSensitivity)
-	  || isnan(paddingLevel) || isnan(reach))
+	  || isnan(clustParam.lowerSensitivity) || isnan(clustParam.upperSensitivity)
+	  || isnan(clustParam.paddingLevel) || isnan(clustParam.reach))
 	{
 		cerr << "Missing argument\n";
 		PrintHelp();
 		return(EXIT_FAILURE);
 	}
 
+	RadarData_t radarInfo = ReadRadarFile(inputFilename);
 
-	NcFile radarFile(inputFilename.c_str());
+	if (radarInfo.inputFilename.empty())
+	{
+		cerr << "ERROR: Problem reading the data file: " << inputFilename << endl;
+		cerr << "       Quiting without running SPA.\n";
+		return(EXIT_FAILURE);
+	}
+
+	const size_t gridSize = radarInfo.dataEdges[1] * radarInfo.dataEdges[2];
+
+	vector<size_t> xLocs(0);
+	xLocs.reserve(gridSize);
+
+	vector<size_t> yLocs(0);
+	yLocs.reserve(gridSize);
+
+	vector<float> values(0);
+	values.reserve(gridSize);
+
+	vector< vector<float> > theValues(radarInfo.dataEdges[1], vector<float>(radarInfo.dataEdges[2], NAN));
+
+	size_t dataIndex = 0;
+	for (size_t yIndex = 0; yIndex < radarInfo.dataEdges[1]; yIndex++)
+	{
+		for (size_t xIndex = 0; xIndex < radarInfo.dataEdges[2]; xIndex++, dataIndex++)
+		{
+			if (isfinite(radarInfo.dataVals[dataIndex]))
+			{
+				xLocs.push_back(xIndex);
+				yLocs.push_back(yIndex);
+				values.push_back(radarInfo.dataVals[dataIndex]);
+				theValues[yIndex][xIndex] = radarInfo.dataVals[dataIndex];
+			}
+		}
+	}
+
+	delete [] radarInfo.dataVals; radarInfo.dataVals = NULL;
+
+
+	StrongPointAnalysis theSPA(xLocs, yLocs, values, 
+				   radarInfo.dataEdges[2], radarInfo.dataEdges[1], 
+				   clustParam.upperSensitivity, clustParam.lowerSensitivity, 
+				   clustParam.paddingLevel, clustParam.reach, clustParam.subClustDepth);
+
+	cerr << "Loaded...\n";
+
+	vector<Cluster> theClusters = theSPA.DoCluster();
+
+	cerr << "Cluster Count: " << theClusters.size() << endl;
+	
+	if (!OutputClusters(outputFilename, theClusters, radarInfo, clustParam))
+	{
+		cerr << "Problem outputing to file: " << outputFilename << '\n';
+		return(EXIT_FAILURE);
+	}
+
+	return(EXIT_SUCCESS);
+}
+
+/*
+struct RadarData_t
+{
+        string inputFilename;
+
+        double* dataVals;
+        string var_LongName;
+        string var_Units;
+
+        long* dataEdges;
+
+        double* latVals;
+        string latUnits;
+        double latSpacing;
+
+        double* lonVals;
+        string lonUnits;
+        double lonSpacing;
+
+        time_t scanTime;
+        string timeUnits;
+
+        string fileTitle;
+};
+*/
+
+RadarData_t ReadRadarFile(const string &filename)
+{
+	RadarData_t inputData;
+
+	NcFile radarFile(filename.c_str());
 
 	if (!radarFile.is_valid())
 	{
-		cerr << "ERROR: Could not open radar file: " << inputFilename << " for reading.\n";
-		return(EXIT_FAILURE);
+		cerr << "ERROR: Could not open radar file: " << filename << " for reading.\n";
+
+		// Error is indicated by the lack of initialization of
+		// the filename member of the struct.
+		return(inputData);
 	}
 
 
@@ -136,91 +266,191 @@ int main(int argc, char* argv[])
 	{
 		cerr << "ERROR: invalid data file.  No variable called 'value'!\n";
 		radarFile.close();
-		return(EXIT_FAILURE);
+		return(inputData);
 	}
 		
 
-	long* dataEdges = reflectVar->edges();	// [0] - time, [1] - lat, [2] - lon
-	double* dataVals = new double[reflectVar->num_vals()];
-	const size_t xSize = dataEdges[2];
-	const size_t ySize = dataEdges[1];
+	inputData.dataEdges = reflectVar->edges();	// [0] - time, [1] - lat, [2] - lon
+	inputData.dataVals = new double[reflectVar->num_vals()];
+	reflectVar->get(inputData.dataVals, inputData.dataEdges);
 
-	reflectVar->get(dataVals, dataEdges);
+	inputData.var_LongName = GrabAttribute(reflectVar, 0);
+	inputData.var_Units = "dBZ";//GrabAttribute(reflectVar, 1);
 
-	vector<size_t> xLocs(0);
-	xLocs.reserve(xSize * ySize);
+	NcVar* latVar = radarFile.get_var("lat");
 
-	vector<size_t> yLocs(0);
-	yLocs.reserve(xSize * ySize);
-
-	vector<float> values(0);
-	values.reserve(xSize * ySize);
-
-	vector< vector<float> > theValues(ySize, vector<float>(xSize, NAN));
-
-	cout << "XSize: " << xSize << "   YSize: " << ySize << endl;
-
-	size_t dataIndex = 0;
-	for (size_t yIndex = 0; yIndex < ySize; yIndex++)
+	if (NULL == latVar)
 	{
-		for (size_t xIndex = 0; xIndex < xSize; xIndex++, dataIndex++)
-		{
-			if (isfinite(dataVals[dataIndex]))
-			{
-				xLocs.push_back(xIndex);
-				yLocs.push_back(yIndex);
-				values.push_back(dataVals[dataIndex]);
-				theValues[yIndex][xIndex] = dataVals[dataIndex];
-			}
-		}
+		cerr << "ERROR: invalid data file.  No variable called 'lat'!\n";
+		radarFile.close();
+		return(inputData);
 	}
+
+	inputData.latVals = new double[latVar->num_vals()];
+	latVar->get(inputData.latVals, latVar->num_vals());
+	inputData.latUnits = GrabAttribute(latVar, 0);
+	inputData.latSpacing = strtod(GrabAttribute(latVar, 1).c_str(), NULL);
+
+	NcVar* lonVar = radarFile.get_var("lon");
+
+	if (NULL == lonVar)
+	{
+		cerr << "ERROR: invalid data file.  No variable called 'lon'!\n";
+		radarFile.close();
+		return(inputData);
+	}
+
+	inputData.lonVals = new double[lonVar->num_vals()];
+	lonVar->get(inputData.lonVals, lonVar->num_vals());
+	inputData.lonUnits = GrabAttribute(lonVar, 0);
+	inputData.lonSpacing = strtod(GrabAttribute(lonVar, 1).c_str(), NULL);
+		
+
+	NcVar* timeVar = radarFile.get_var("time");
+	
+	if (NULL == timeVar)
+	{
+		cerr << "ERROR: invalid data file.  No variable called 'time'!\n";
+		radarFile.close();
+		return(inputData);
+	}
+
+	inputData.scanTime = timeVar->as_long(0);
+	inputData.timeUnits = GrabAttribute(timeVar, 0);
+
+	NcAtt* titleAttrib = radarFile.get_att("title");
+
+	inputData.fileTitle = (NULL == titleAttrib ? "" : titleAttrib->as_string(0));
+
+	delete titleAttrib;
 
 	radarFile.close();
 
-	delete [] dataEdges;
-	delete [] dataVals;
+	// Success!
+	inputData.inputFilename = filename;
 
-	cout << "values.size(): " << values.size() << endl;
 
-	StrongPointAnalysis theSPA(xLocs, yLocs, values, 
-				   xSize, ySize, 
-				   upperSensitivity, lowerSensitivity, paddingLevel, reach, subClustDepth);
+	return(inputData);
+}
 
-	cerr << "Loaded...\n";
 
-	vector<Cluster> theClusters = theSPA.DoCluster();
-
-	cerr << "Cluster Count: " << theClusters.size() << endl;
-	
-	if (!OutputClusters(outputFilename, theValues, theClusters, xSize, ySize, upperSensitivity, lowerSensitivity, 
-										  paddingLevel, reach, subClustDepth))
+string GrabAttribute(const NcVar* dataVar, const int attIndex)
+{
+	if (NULL == dataVar)
 	{
-		cerr << "Problem outputing to file: " << outputFilename << '\n';
-		return(EXIT_FAILURE);
+		cerr << "ERROR: Invalid NcVar!\n";
+		return("");
 	}
 
-	return(EXIT_SUCCESS);
+	NcAtt* dataAttrib = dataVar->get_att(attIndex);
+
+	if (NULL == dataAttrib)
+	{
+		cerr << "ERROR: Could not obtain data attribute: index #" << attIndex << endl;
+		return("");
+	}
+
+	const string returnVal = dataAttrib->as_string(0);
+
+	delete dataAttrib;
+
+	return(returnVal);
 }
 
 
 
-bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
-		    const size_t xSize, const size_t ySize, 
-		    const float upperSensitivity, const float lowerSensitivity, const float paddingLevel, 
-		    const float reach, const int subClustDepth)
+
+
+bool OutputClusters(const string &filename, const vector<Cluster> &theClusters,
+                    const RadarData_t &radarInfo, const ClustParams_t &clustParam)
 {
 
-	ofstream outFile(filename.c_str());
+	NcFile clusterFile(filename.c_str(), NcFile::Replace);
 
-	if (!outFile.is_open())
+	if (!clusterFile.is_valid())
 	{
-		cerr << "Could not open file: " << filename << "\n";
+		cerr << "Could not create file: " << filename << "\n";
 		return(false);
 	}
 
+	size_t pixelCnt = 0;
+	for (vector<Cluster>::const_iterator aClust = theClusters.begin();
+	     aClust != theClusters.end();
+	     aClust++)
+	{
+		pixelCnt += aClust->size();
+	}
+
+	NcDim* pixelDim = clusterFile.add_dim("pixel_index", pixelCnt);
+	NcDim* latDim = clusterFile.add_dim("lat", radarInfo.dataEdges[1]);
+	NcDim* lonDim = clusterFile.add_dim("lon", radarInfo.dataEdges[2]);
+
+	NcVar* clustMember = clusterFile.add_var("clusterIndex", ncInt, pixelDim);
+	clustMember->add_att("Description", "pixel cluster membership");
+	NcVar* xLoc = clusterFile.add_var("pixel_xLoc", ncInt, pixelDim);
+	xLoc->add_att("Description", "x-index of pixel in domain (lat,lon)");
+	NcVar* yLoc = clusterFile.add_var("pixel_yLoc", ncInt, pixelDim);
+	yLoc->add_att("Description", "y-index of pixel in domain (lat,lon)");
+
+
+	NcVar* lats = clusterFile.add_var("lat", ncDouble, latDim);
+	lats->add_att("units", radarInfo.latUnits.c_str());
+	lats->add_att("spacing", radarInfo.latSpacing);
+
+	NcVar* lons = clusterFile.add_var("lon", ncDouble, lonDim);
+	lons->add_att("units", radarInfo.lonUnits.c_str());
+	lons->add_att("spacing", radarInfo.lonSpacing);
+
+	clusterFile.add_att("title", "SPA Cluster Results of Radar Reflectivities");
+	clusterFile.add_att("data_source", radarInfo.inputFilename.c_str());
+	clusterFile.add_att("time", radarInfo.scanTime);
+
+	// Need to do type-casting to double because the netcdf libraries can't seem to properly save a float.
+	// Also, the truncf() is used to -- somewhat -- handle mantisa issues.
+	clusterFile.add_att("Upper_Sensitivity", (double) (truncf(100.0 * clustParam.upperSensitivity)/100.0));
+	clusterFile.add_att("Lower_Sensitivity", (double) (truncf(100.0 * clustParam.lowerSensitivity)/100.0));
+	clusterFile.add_att("Padding_Level", (double) (truncf(100.0 * clustParam.paddingLevel)/100.0));
+	clusterFile.add_att("Reach", (double) (truncf(100.0 * clustParam.reach)/100.0));
+	clusterFile.add_att("Subcluster_Depth", clustParam.subClustDepth);
+
+	int* clustIndicies = new int[pixelCnt];
+	int* xPixels = new int[pixelCnt];
+	int* yPixels = new int[pixelCnt];
+	
+	size_t pixelIndex = 0;
+	for (size_t clustIndex = 0; clustIndex < theClusters.size(); clustIndex++)
+	{
+		for (Cluster::const_iterator aMember = theClusters[clustIndex].begin();
+		     aMember != theClusters[clustIndex].end();
+		     aMember++, pixelIndex++)
+		{
+			clustIndicies[pixelIndex] = clustIndex;
+			xPixels[pixelIndex] = aMember->XLoc;
+			yPixels[pixelIndex] = aMember->YLoc;
+		}
+	}
+
+	clustMember->put(clustIndicies, pixelCnt);
+	xLoc->put(xPixels, pixelCnt);
+	yLoc->put(yPixels, pixelCnt);
+
+	lats->put(radarInfo.latVals, radarInfo.dataEdges[1]);
+	lons->put(radarInfo.lonVals, radarInfo.dataEdges[2]);
+
+	clusterFile.close();
+
+	delete [] clustIndicies;
+	delete [] xPixels;
+	delete [] yPixels;
+
+	return(true);
+}
+
+
+/*
 	outFile << xSize << ' ' << ySize << ' ' << upperSensitivity << ' ' << lowerSensitivity << ' ' 
 		<< paddingLevel << ' ' << reach << ' ' << subClustDepth << '\n';
-
+*/
 /*
 	for (size_t yIndex = 0; yIndex < ySize; yIndex++)
 	{
@@ -232,7 +462,7 @@ bool OutputClusters(const string &filename, const vector< vector<float> > &dataV
 		outFile << '\n';
 	}
 */
-
+/*
 	outFile << theClusters.size() << '\n';
 
 	for (vector<Cluster>::const_iterator aClust = theClusters.begin();
@@ -250,7 +480,5 @@ bool OutputClusters(const string &filename, const vector< vector<float> > &dataV
 	}
 
 	outFile.close();
-
-	return(true);
-}
+*/
 

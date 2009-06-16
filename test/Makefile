@@ -24,7 +24,7 @@ test_random : $(BINDIR)/test_random
 test_radar : $(BINDIR)/test_radar
 
 $(BINDIR)/test_random : test_random.C $(SPA_INCLUDEDIR)/StrongPointAnalysis.h $(SPA_INCLUDEDIR)/Cluster.h
-	$(CXX) $< -o $@ -O3 $(SPA_INCLUDE) $(SPA_LIB) -lm $(CXXFLAGS)
+	$(CXX) $< -o $@ -O3 $(SPA_INCLUDE) $(SPA_LIB) $(NETCDF_INCLUDE) $(NETCDF_LIB) -lm $(CXXFLAGS)
 
 $(BINDIR)/test_radar : test_radar.C $(SPA_INCLUDEDIR)/StrongPointAnalysis.h $(SPA_INCLUDEDIR)/Cluster.h
 	$(CXX) $< -o $@ -O3 $(SPA_INCLUDE) $(SPA_LIB) $(NETCDF_INCLUDE) $(NETCDF_LIB) -lm $(CXXFLAGS)

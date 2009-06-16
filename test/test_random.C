@@ -9,17 +9,34 @@ using namespace std;
 #include "StrongPointAnalysis.h"
 #include "Cluster.h"
 
+#include <netcdfcpp.h>
 
 // g++ -g test.C -o test -L ./ -lSPAnalysis -lm
 
-bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
-                    const size_t xSize, const size_t ySize, 
-                    const double deviationsAbove, const double deviationsBelow, const float paddingLevel, const float reach,
-		    const int subClustDepth);
+struct ClustParams_t
+{
+        float upperSensitivity;
+        float lowerSensitivity;
+        float paddingLevel;
+        float reach;
+        int subClustDepth;
+};
+
+
+bool OutputClusters(const string &filename, const vector<Cluster> &theClusters,
+                    const size_t xLen, const size_t yLen, const ClustParams_t &clustParam);
+
 
 
 int main()
 {
+        ClustParams_t clustParam;
+        clustParam.upperSensitivity = 1.5;
+        clustParam.lowerSensitivity = -0.5;
+        clustParam.paddingLevel = 2.0;
+        clustParam.reach = 2.5;
+        clustParam.subClustDepth = 0;
+
 	const size_t dataCount = 100000;
 	const size_t xSize = 100;
 	const size_t ySize = 150;
@@ -63,16 +80,8 @@ int main()
 		}
 	}
 
-
-
-	const double deviationsAbove = 1.5;
-	const double deviationsBelow = -0.5;
-	const float paddingLevel = 2.0;
-	const float reach = 2.5;
-	const int subClustDepth = 0;
-
-	StrongPointAnalysis theSPA(xLocs, yLocs, values, xSize, ySize, deviationsAbove, deviationsBelow, 
-								       paddingLevel, reach, subClustDepth);
+	StrongPointAnalysis theSPA(xLocs, yLocs, values, xSize, ySize, clustParam.upperSensitivity, clustParam.lowerSensitivity, 
+								       clustParam.paddingLevel, clustParam.reach, clustParam.subClustDepth);
 
 	cerr << "Loaded...\n";
 
@@ -81,8 +90,7 @@ int main()
 	cerr << "Cluster Count: " << theClusters.size() << endl;
 	
 
-	if (!OutputClusters("output.txt", dataVals, theClusters, xSize, ySize, deviationsAbove, deviationsBelow, 
-									       paddingLevel, reach, subClustDepth))
+	if (!OutputClusters("output.txt", theClusters, xSize, ySize, clustParam))
 	{
 		cerr << "Problem output to file...\n";
 		return(1);
@@ -92,54 +100,100 @@ int main()
 }
 
 
-
-bool OutputClusters(const string &filename, const vector< vector<float> > &dataVals, const vector<Cluster> &theClusters,
-		    const size_t xSize, const size_t ySize, 
-		    const double deviationsAbove, const double deviationsBelow, const float paddingLevel, 
-		    const float reach, const int subClustDepth)
+bool OutputClusters(const string &filename, const vector<Cluster> &theClusters,
+		    const size_t xLen, const size_t yLen, const ClustParams_t &clustParam)
 {
 
-	ofstream outFile(filename.c_str());
+        NcFile clusterFile(filename.c_str(), NcFile::Replace);
 
-	if (!outFile.is_open())
+        if (!clusterFile.is_valid())
+        {
+                cerr << "Could not create file: " << filename << "\n";
+                return(false);
+        }
+
+        size_t pixelCnt = 0;
+        for (vector<Cluster>::const_iterator aClust = theClusters.begin();
+             aClust != theClusters.end();
+             aClust++)
+        {
+                pixelCnt += aClust->size();
+        }
+
+        NcDim* pixelDim = clusterFile.add_dim("pixel_index", pixelCnt);
+        NcDim* yDim = clusterFile.add_dim("lat", yLen);
+        NcDim* xDim = clusterFile.add_dim("lon", xLen);
+
+        NcVar* clustMember = clusterFile.add_var("clusterIndex", ncInt, pixelDim);
+        clustMember->add_att("Description", "pixel cluster membership");
+        NcVar* xLoc = clusterFile.add_var("pixel_xLoc", ncInt, pixelDim);
+        xLoc->add_att("Description", "x-index of pixel in domain (lat,lon)");
+        NcVar* yLoc = clusterFile.add_var("pixel_yLoc", ncInt, pixelDim);
+        yLoc->add_att("Description", "y-index of pixel in domain (lat,lon)");
+
+
+        NcVar* lats = clusterFile.add_var("lat", ncInt, yDim);
+        lats->add_att("units", "unit");
+        lats->add_att("spacing", 1);
+
+        NcVar* lons = clusterFile.add_var("lon", ncInt, xDim);
+        lons->add_att("units", "unit");
+        lons->add_att("spacing", 1);
+
+        clusterFile.add_att("title", "SPA Cluster Results of Random Generation");
+        clusterFile.add_att("data_source", "");
+        clusterFile.add_att("time", -1);
+
+        // Need to do type-casting to double because the netcdf libraries can't seem to properly save a float.
+        // Also, the truncf() is used to -- somewhat -- handle mantisa issues.
+	clusterFile.add_att("Upper_Sensitivity", (double) (truncf(100.0 * clustParam.upperSensitivity)/100.0));
+        clusterFile.add_att("Lower_Sensitivity", (double) (truncf(100.0 * clustParam.lowerSensitivity)/100.0));
+        clusterFile.add_att("Padding_Level", (double) (truncf(100.0 * clustParam.paddingLevel)/100.0));
+        clusterFile.add_att("Reach", (double) (truncf(100.0 * clustParam.reach)/100.0));
+        clusterFile.add_att("Subcluster_Depth", clustParam.subClustDepth);
+        int* clustIndicies = new int[pixelCnt];
+        int* xPixels = new int[pixelCnt];
+        int* yPixels = new int[pixelCnt];
+        size_t pixelIndex = 0;
+        for (size_t clustIndex = 0; clustIndex < theClusters.size(); clustIndex++)
+        {
+        	for (Cluster::const_iterator aMember = theClusters[clustIndex].begin();
+                     aMember != theClusters[clustIndex].end();
+                     aMember++, pixelIndex++)
+                {
+                        clustIndicies[pixelIndex] = clustIndex;
+                        xPixels[pixelIndex] = aMember->XLoc;
+                        yPixels[pixelIndex] = aMember->YLoc;
+                }
+        }
+
+        clustMember->put(clustIndicies, pixelCnt);
+        xLoc->put(xPixels, pixelCnt);
+        yLoc->put(yPixels, pixelCnt);
+
+	int *latVals = new int[yLen];
+	for (size_t index = 0; index < yLen; index++)
 	{
-		cerr << "Could not open file: " << filename << "\n";
-		return(false);
+		latVals[index] = index;
 	}
 
-	outFile << xSize << ' ' << ySize << ' ' << deviationsAbove << ' ' << deviationsBelow << ' ' 
-	        << paddingLevel << ' ' << reach << ' ' << subClustDepth << '\n';
-
-/*
-	for (size_t yIndex = 0; yIndex < ySize; yIndex++)
+	int *lonVals = new int[xLen];
+	for (size_t index = 0; index < xLen; index++)
 	{
-		outFile << dataVals[yIndex][0];
-		for (size_t xIndex = 1; xIndex < xSize; xIndex++)
-		{
-			outFile << ' ' << dataVals[yIndex][xIndex];
-		}
-		outFile << '\n';
-	}
-*/
-
-	outFile << theClusters.size() << '\n';
-
-	for (vector<Cluster>::const_iterator aClust = theClusters.begin();
-	     aClust != theClusters.end();
-	     aClust++)
-	{
-		outFile << aClust->size() << '\n';
-
-		for (Cluster::const_iterator aMember = aClust->begin();
-		     aMember != aClust->end();
-		     aMember++)
-		{
-			outFile << aMember->XLoc + 1 << ' ' << aMember->YLoc + 1 << ' ' << aMember->memberVal << '\n';
-		}
+		lonVals[index] = index;
 	}
 
-	outFile.close();
+        lats->put(latVals, yLen);
+        lons->put(lonVals, xLen);
 
-	return(true);
+        clusterFile.close();
+
+        delete [] clustIndicies;
+        delete [] xPixels;
+        delete [] yPixels;
+	delete [] latVals;
+	delete [] lonVals;
+
+        return(true);
 }
 
