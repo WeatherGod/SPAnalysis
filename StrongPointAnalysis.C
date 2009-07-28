@@ -9,6 +9,7 @@ using namespace std;
 #include <vector>
 #include <algorithm>			// for max(), max_element()
 #include <cstddef>			// for size_t
+#include <cstdio>			// for printf()
 
 #include <cmath>			// for pow(), hypot(), NAN, MAXFLOAT, isfinite(), sqrt()
 
