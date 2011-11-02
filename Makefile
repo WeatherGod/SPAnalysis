@@ -1,9 +1,16 @@
 SHELL = /bin/sh
 
+prefix = $(HOME)/.local
+exec_prefix = $(prefix)
+libdir = $(exec_prefix)/lib
+includedir = $(prefix)/include
+
 .SUFFIXES:
 
-LIB_INSTALL=$(HOME)/lib
-DEV_INSTALL=$(HOME)/include
+#LIB_INSTALL=$(HOME)/.local/lib
+#DEV_INSTALL=$(HOME)/.local/include
+
+
 
 all : libSPAnalysis.so
 
@@ -16,12 +23,18 @@ StrongPointAnalysis.o : StrongPointAnalysis.C StrongPointAnalysis.h Cluster.h
 Cluster.o : Cluster.C Cluster.h
 	$(CXX) -c $< -o $@ -fPIC $(CXXFLAGS)
 
-install : libSPAnalysis.so StrongPointAnalysis.h Cluster.h
-	install -t $(LIB_INSTALL) libSPAnalysis.so
-	cp StrongPointAnalysis.h Cluster.h $(DEV_INSTALL)
+install_lib : libSPAnalysis.so
+	install -t $(libdir) libSPAnalysis.so
+
+install_dev : StrongPointAnalysis.h Cluster.h
+	cp StrongPointAnalysis.h Cluster.h $(includedir)
+
+install : install_lib install_dev
 
 remove :
-	-rm -f $(LIB_INSTALL)/libSPAnalysis.so $(DEV_INSTALL)/StrongPointAnalysis.h $(DEV_INSTALL)/Cluster.h
+	-rm -f $(libdir)/libSPAnalysis.so $(includedir)/StrongPointAnalysis.h $(includedir)/Cluster.h
 
 clean :
 	-rm -f libSPAnalysis.so StrongPointAnalysis.o Cluster.o
+
+.PHONY : all install_lib install_dev install remove clean
